@@ -27,9 +27,13 @@ jobs:
           extended: true
 
       - name: Build
-        run: hugo --minify --baseURL "$GITHUB_PAGES_URL"
+        run: |
+          REPO_NAME="${GITHUB_REPOSITORY#*/}"
+          REPO_OWNER="${GITHUB_REPOSITORY%/*}"
+          BASE_URL="https://${REPO_OWNER,,}.github.io/${REPO_NAME}/"
+          hugo --minify --baseURL "$BASE_URL"
         env:
-          GITHUB_PAGES_URL: ${{ vars.GITHUB_PAGES_URL }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
           # Secrets (sensitive keys)
           HUGO_PARAMS_FIREBASE_API_KEY: ${{ secrets.HUGO_PARAMS_FIREBASE_API_KEY }}
           HUGO_PARAMS_FIREBASE_APP_ID: ${{ secrets.HUGO_PARAMS_FIREBASE_APP_ID }}
