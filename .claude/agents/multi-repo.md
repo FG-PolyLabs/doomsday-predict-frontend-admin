@@ -42,7 +42,7 @@ Cloud Run API ──────────────────────
       │                                      │
       ▼                                      ▼
 BigQuery (fg-polylabs / doomsday dataset)  GitHub Raw (doomsday-predict-data)
-GCS bucket (fg-polylabs / fg-polylabs-doomsday)        GCS fallback (fg-polylabs / doomsday)
+GCS bucket (fg-polylabs / doomsday-data)        GCS fallback (fg-polylabs / doomsday)
 ```
 
 ## GCP Resources (project: `fg-polylabs`)
