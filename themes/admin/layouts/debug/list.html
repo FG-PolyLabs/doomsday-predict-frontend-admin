@@ -99,13 +99,13 @@
 
     const checks = [
       {
-        label: "Backend /health",
-        url:   backendUrl + "/health",
+        label: "Backend /api/v1/health",
+        url:   backendUrl + "/api/v1/health",
         authenticated: true,
       },
       {
-        label: "GitHub data repo (index.json)",
-        url:   `https://raw.githubusercontent.com/${dc.githubDataRepo}/main/index.json`,
+        label: "GitHub data repo (data/markets.jsonl)",
+        url:   `https://raw.githubusercontent.com/${dc.githubDataRepo}/main/data/markets.jsonl`,
       },
       {
         label: "GCS bucket (doomsday-data)",
