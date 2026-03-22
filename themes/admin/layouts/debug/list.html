@@ -1,0 +1,205 @@
+{{ define "main" }}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h2 class="mb-0"><i class="bi bi-bug me-2"></i>Debug</h2>
+</div>
+
+<!-- Auth guard -->
+<div id="debug-unauthenticated" class="alert alert-warning d-none">
+  You must sign in to view debug info.
+</div>
+<div id="debug-unauthorized" class="alert alert-danger d-none">
+  You do not have permission to view this page.
+</div>
+
+<div id="debug-content" class="d-none">
+
+  <!-- Frontend Config -->
+  <div class="card mb-4">
+    <div class="card-header fw-semibold"><i class="bi bi-gear me-2"></i>Frontend Config</div>
+    <div class="card-body p-0">
+      <table class="table table-sm table-striped mb-0" id="tbl-config"></table>
+    </div>
+  </div>
+
+  <!-- Auth State -->
+  <div class="card mb-4">
+    <div class="card-header fw-semibold"><i class="bi bi-person-check me-2"></i>Auth State</div>
+    <div class="card-body p-0">
+      <table class="table table-sm table-striped mb-0" id="tbl-auth"></table>
+    </div>
+  </div>
+
+  <!-- Connectivity -->
+  <div class="card mb-4">
+    <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
+      <span><i class="bi bi-wifi me-2"></i>Connectivity</span>
+      <button class="btn btn-sm btn-outline-secondary" onclick="runChecks()">
+        <i class="bi bi-arrow-clockwise me-1"></i>Re-run checks
+      </button>
+    </div>
+    <div class="card-body p-0">
+      <table class="table table-sm table-striped mb-0" id="tbl-connectivity"></table>
+    </div>
+  </div>
+
+  <!-- Firebase ID Token -->
+  <div class="card mb-4">
+    <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
+      <span><i class="bi bi-key me-2"></i>Firebase ID Token</span>
+      <div class="d-flex gap-2">
+        <button class="btn btn-sm btn-outline-secondary" onclick="refreshToken()">
+          <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+        </button>
+        <button class="btn btn-sm btn-outline-secondary" onclick="copyToken()">
+          <i class="bi bi-clipboard me-1"></i>Copy
+        </button>
+      </div>
+    </div>
+    <div class="card-body">
+      <textarea id="token-box" class="form-control font-monospace" rows="4"
+                style="font-size:0.75rem;word-break:break-all" readonly></textarea>
+    </div>
+  </div>
+
+</div><!-- /debug-content -->
+
+{{ end }}
+
+{{ define "page-scripts" }}
+<script>
+(function () {
+  function esc(v) {
+    return String(v ?? "")
+      .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  }
+
+  function row(label, value, status) {
+    const badgeClass = { ok: "success", warn: "warning", error: "danger" }[status] || "";
+    const cell = status
+      ? `<span class="badge bg-${badgeClass}">${esc(value)}</span>`
+      : `<span class="font-monospace">${esc(value)}</span>`;
+    return `<tr><td class="ps-3 text-muted" style="width:40%">${esc(label)}</td><td class="pe-3">${cell}</td></tr>`;
+  }
+
+  function setTable(id, rows) {
+    document.getElementById(id).innerHTML = "<tbody>" + rows.join("") + "</tbody>";
+  }
+
+  function tokenExpiry(token) {
+    try {
+      const payload = JSON.parse(atob(token.split(".")[1]));
+      const remaining = Math.round((payload.exp * 1000 - Date.now()) / 60000);
+      return remaining > 0 ? `${remaining} min remaining` : "expired";
+    } catch (_) { return "unknown"; }
+  }
+
+  async function runChecks() {
+    const dc  = window.DATA_CONFIG || {};
+    const backendUrl = (document.body.dataset.backendUrl || "").replace(/\/$/, "");
+
+    const checks = [
+      {
+        label: "Backend /health",
+        url:   backendUrl + "/health",
+        authenticated: true,
+      },
+      {
+        label: "GitHub data repo (index.json)",
+        url:   `https://raw.githubusercontent.com/${dc.githubDataRepo}/main/index.json`,
+      },
+      {
+        label: "GCS bucket (doomsday-data)",
+        url:   `https://storage.googleapis.com/${dc.gcsBucket}/`,
+      },
+    ];
+
+    setTable("tbl-connectivity", checks.map(c => row(c.label, "checking…", "")));
+
+    const rows = await Promise.all(checks.map(async (c) => {
+      try {
+        if (c.authenticated) {
+          await api("GET", "/health");
+          return row(c.label, "200 OK", "ok");
+        } else {
+          const res = await fetch(c.url, { method: "GET", cache: "no-store" });
+          const ok = res.ok || res.status === 400; // 400 from GCS means bucket exists but path needed
+          return row(c.label, ok ? `${res.status} OK` : `${res.status} Error`, ok ? "ok" : "error");
+        }
+      } catch (e) {
+        const status = e.message?.match(/^\d+$/) ? `${e.message} Error` : "unreachable";
+        return row(c.label, status, "error");
+      }
+    }));
+
+    setTable("tbl-connectivity", rows);
+  }
+
+  async function refreshToken() {
+    const user = firebase.auth().currentUser;
+    if (!user) return;
+    const token = await user.getIdToken(true);
+    document.getElementById("token-box").value = token;
+    showToast("Token refreshed", "success");
+  }
+
+  function copyToken() {
+    const val = document.getElementById("token-box").value;
+    if (!val) return;
+    navigator.clipboard.writeText(val).then(() => showToast("Token copied", "success"));
+  }
+
+  window.runChecks    = runChecks;
+  window.refreshToken = refreshToken;
+  window.copyToken    = copyToken;
+
+  window.onPageAuthStateChanged = async function (user) {
+    const unauthEl  = document.getElementById("debug-unauthenticated");
+    const unauthzEl = document.getElementById("debug-unauthorized");
+    const contentEl = document.getElementById("debug-content");
+
+    if (!user) {
+      unauthEl.classList.remove("d-none");
+      unauthzEl.classList.add("d-none");
+      contentEl.classList.add("d-none");
+      return;
+    }
+
+    if (!isEmailAllowed(user.email)) {
+      unauthEl.classList.add("d-none");
+      unauthzEl.classList.remove("d-none");
+      contentEl.classList.add("d-none");
+      return;
+    }
+
+    unauthEl.classList.add("d-none");
+    unauthzEl.classList.add("d-none");
+    contentEl.classList.remove("d-none");
+
+    // Config table
+    const cfg = window.FIREBASE_CONFIG || {};
+    const dc  = window.DATA_CONFIG    || {};
+    const backendUrl = (document.body.dataset.backendUrl || "").replace(/\/$/, "");
+    setTable("tbl-config", [
+      row("Backend URL",          backendUrl          || "(not set)", backendUrl          ? "" : "warn"),
+      row("Firebase project",     cfg.projectId       || "(not set)", cfg.projectId       ? "" : "warn"),
+      row("Firebase auth domain", cfg.authDomain      || "(not set)", cfg.authDomain      ? "" : "warn"),
+      row("GitHub data repo",     dc.githubDataRepo   || "(not set)", dc.githubDataRepo   ? "" : "warn"),
+      row("GCS bucket",           dc.gcsBucket        || "(not set)", dc.gcsBucket        ? "" : "warn"),
+      row("Allowed emails",       (window.ALLOWED_EMAILS || []).join(", ") || "(unrestricted)"),
+    ]);
+
+    // Auth table
+    const token = await user.getIdToken();
+    setTable("tbl-auth", [
+      row("Email",        user.email),
+      row("UID",          user.uid),
+      row("Token expiry", tokenExpiry(token)),
+    ]);
+
+    document.getElementById("token-box").value = token;
+
+    runChecks();
+  };
+})();
+</script>
+{{ end }}
