@@ -1,17 +1,42 @@
-# bq-cr-gcs-git-architecture-frontend-admin-template
+# doomsday-predict-frontend-admin
 
 ## Project Overview
 
-This is a **template** for Hugo-based admin frontends following the BigQuery / Cloud Run / GCS / Git architecture. Fork or use this as a GitHub template to bootstrap new projects.
+Hugo-based admin frontend for the **doomsday-predict** system. Authenticated users can create, edit, and delete records via the backend API. Data is read from static JSON (GitHub → GCS fallback) and written through Cloud Run.
 
-## Architecture
+This is **one of three repos** in the project — see the Multi-Repo section below.
+
+## Multi-Repo Architecture
+
+All three repos are siblings on disk (same parent directory).
+
+| Repo | Local path | GitHub | Purpose |
+|------|-----------|--------|---------|
+| `doomsday-predict-frontend-admin` | `.` | https://github.com/FG-PolyLabs/doomsday-predict-frontend-admin | This repo — admin UI |
+| `doomsday-predict-analytics` | `../doomsday-predict-analytics` | https://github.com/FG-PolyLabs/doomsday-predict-analytics | Backend: Cloud Run API + scheduled jobs |
+| `doomsday-predict-data` | `../doomsday-predict-data` | https://github.com/FG-PolyLabs/doomsday-predict-data | Published JSON data files |
+
+Run `./setup.sh` from this repo root to clone the sibling repos automatically.
+
+For cross-repo tasks, use the **multi-repo** custom agent (`.claude/agents/multi-repo.md`).
+
+## GCP Resources (project: `fg-polylabs`)
+
+| Resource | Details |
+|----------|---------|
+| BigQuery dataset | `fg-polylabs.doomsday` |
+| GCS bucket | `gs://doomsday` |
+| Cloud Run API | To be created in `us-central1` |
+| Cloud Run scheduled job | `doomsday-polymarket` (us-central1) — already exists |
+
+## This Repo's Architecture
 
 - **Framework:** [Hugo](https://gohugo.io/) — static site generator with Go templates
-- **Theme:** Custom theme (`themes/admin/`) — minimal Bootstrap 5 layout, no external theme dependency
-- **Auth:** Firebase Authentication — users must sign in before any backend requests are made. The Firebase ID token is attached to all backend API calls.
-- **Backend communication:** All mutations are gated behind a valid Firebase session. The `api()` helper in `static/js/api.js` handles token attachment automatically.
-- **Data reads:** Static JSON served from GitHub Raw (primary) with GCS as fallback, via `static/js/data-loader.js`.
-- **Deployment:** GitHub Pages via GitHub Actions (`.github/workflows/deploy.yml`).
+- **Theme:** Custom theme (`themes/admin/`) — Bootstrap 5, no external theme dependency
+- **Auth:** Firebase Authentication (`collection-showcase-auth` project) — Google sign-in; ID token attached to all API calls
+- **Backend communication:** `api()` helper in `static/js/api.js` — attaches `Authorization: Bearer <token>` automatically
+- **Data reads:** `loadJsonData()` in `static/js/data-loader.js` — GitHub Raw first, GCS fallback
+- **Deployment:** GitHub Pages via GitHub Actions (`.github/workflows/deploy.yml`)
 
 ## Key Files
 
@@ -25,22 +50,21 @@ This is a **template** for Hugo-based admin frontends following the BigQuery / C
 | `static/js/app.js` | Global `showToast()` utility |
 | `static/js/data-loader.js` | `loadJsonData(filename)` — GitHub-first, GCS-fallback data fetching |
 | `static/css/app.css` | Minimal style overrides on top of Bootstrap 5 |
-| `content/items/_index.md` | Example section — copy to add new sections |
 | `.env.example` | Template for all environment variables |
 
 ## Auth Flow
 
-1. User lands on the site and is prompted to sign in via Firebase Auth (Google sign-in).
-2. On successful sign-in, Firebase issues an ID token.
-3. The frontend attaches the ID token as `Authorization: Bearer <token>` on all backend requests.
-4. The backend validates the token via the Firebase Admin SDK before processing any write operations.
-5. Access is further restricted to a whitelist of allowed emails (`ALLOWED_EMAILS`), enforced on both frontend and backend.
+1. User lands on the site and is prompted to sign in via Firebase (Google).
+2. Firebase issues an ID token.
+3. Frontend attaches the token as `Authorization: Bearer <token>` on all backend requests.
+4. Backend validates the token via Firebase Admin SDK.
+5. Access is further restricted to `ALLOWED_EMAILS`, enforced on both frontend and backend.
 
 ## Development Notes
 
 - Hugo config lives in `hugo.toml`
-- Firebase config goes in `.env` — never commit this file
+- Firebase config goes in `.env` — never commit this file (sensitive fields: apiKey, appId, messagingSenderId)
+- Non-sensitive Firebase fields (authDomain, projectId, storageBucket) are pre-filled in `.env.example`
 - Environment variables are injected as `HUGO_PARAMS_*` and map to `.Site.Params.*` in templates
-- The `split .Site.Params.allowed.emails ","` pattern in `head.html` converts the comma-separated email string to a JS array
-- To add a new CRUD section: create `content/<section>/_index.md`, add a nav link in `navbar.html`, and optionally add `themes/admin/layouts/<section>/list.html`
-- The default `list.html` provides a working CRUD template — update `RESOURCE_PATH` to your backend endpoint
+- `split .Site.Params.allowed.emails ","` in `head.html` converts the comma-separated email string to a JS array
+- To add a new CRUD section: create `content/<section>/_index.md`, add a nav link in `navbar.html`, add `themes/admin/layouts/<section>/list.html`, set `RESOURCE_PATH` to match the backend endpoint

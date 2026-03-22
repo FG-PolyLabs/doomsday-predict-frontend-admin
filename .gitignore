@@ -10,6 +10,9 @@ resources/_gen/
 firebase-config.js
 serviceAccountKey.json
 
+# Claude Code — local machine settings only; agents/ is committed
+.claude/settings.local.json
+
 # Editor/IDE
 .idea/
 .vscode/
