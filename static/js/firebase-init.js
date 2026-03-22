@@ -41,7 +41,8 @@ function isEmailAllowed(email) {
   return allowed.includes(email.toLowerCase());
 }
 
-// Navbar auth state + admin enforcement
+// Navbar auth state + admin enforcement.
+// Pages can hook in by assigning window.onPageAuthStateChanged(user) before this fires.
 firebase.auth().onAuthStateChanged(user => {
   const emailEl   = document.getElementById("nav-user-email");
   const logoutBtn = document.getElementById("btn-logout");
@@ -57,7 +58,6 @@ firebase.auth().onAuthStateChanged(user => {
     if (loginBtn)  loginBtn.classList.add("d-none");
     if (navLinks)  navLinks.style.removeProperty("display");
 
-    // Gray out admin-only nav links for non-admins
     document.querySelectorAll('.nav-admin-only').forEach(el => {
       el.classList.toggle('nav-admin-disabled', !isAdmin);
     });
@@ -67,5 +67,9 @@ firebase.auth().onAuthStateChanged(user => {
     if (logoutBtn) logoutBtn.classList.add("d-none");
     if (loginBtn)  loginBtn.classList.remove("d-none");
     if (navLinks)  navLinks.style.setProperty("display", "none", "important");
+  }
+
+  if (typeof window.onPageAuthStateChanged === 'function') {
+    window.onPageAuthStateChanged(user);
   }
 });

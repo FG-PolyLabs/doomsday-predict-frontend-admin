@@ -47,7 +47,7 @@
 
 {{ define "page-scripts" }}
 <script>
-  firebase.auth().onAuthStateChanged(user => {
+  window.onPageAuthStateChanged = function(user) {
     if (user) {
       document.getElementById('auth-section').classList.add('d-none');
       document.getElementById('signed-in-section').classList.remove('d-none');
@@ -63,6 +63,6 @@
       document.getElementById('auth-section').classList.remove('d-none');
       document.getElementById('signed-in-section').classList.add('d-none');
     }
-  });
+  };
 </script>
 {{ end }}
