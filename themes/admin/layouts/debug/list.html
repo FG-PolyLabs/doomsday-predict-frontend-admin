@@ -118,7 +118,7 @@
     const rows = await Promise.all(checks.map(async (c) => {
       try {
         if (c.authenticated) {
-          await api("GET", "/health");
+          await api("GET", "/api/v1/health");
           return row(c.label, "200 OK", "ok");
         } else {
           const res = await fetch(c.url, { method: "GET", cache: "no-store" });
