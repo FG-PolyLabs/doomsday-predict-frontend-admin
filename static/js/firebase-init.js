@@ -4,7 +4,7 @@ firebase.initializeApp(window.FIREBASE_CONFIG);
 // Global sign-out
 async function authSignOut() {
   await firebase.auth().signOut();
-  window.location.href = "/";
+  window.location.href = window.SITE_BASE_URL || '/';
 }
 
 // Sign in with Google popup
@@ -14,7 +14,16 @@ async function signInWithGoogle() {
     await firebase.auth().signInWithPopup(provider);
     // onAuthStateChanged handles whitelist check and redirect
   } catch (e) {
-    if (e.code !== 'auth/popup-closed-by-user') {
+    if (e.code === 'auth/popup-closed-by-user') {
+      // Likely cause: this domain is not in Firebase Auth's authorized domains.
+      // Add it at: Firebase console → Authentication → Settings → Authorized domains
+      console.warn('Sign-in popup closed. If unintentional, ensure', window.location.hostname, 'is in Firebase authorized domains.');
+    } else if (e.code === 'auth/popup-blocked') {
+      showToast('Pop-up was blocked by your browser. Please allow pop-ups for this site and try again.', 'warning');
+    } else if (e.code === 'auth/unauthorized-domain') {
+      showToast('Sign-in is not enabled for this domain. Contact the administrator.', 'danger');
+      console.error('Unauthorized domain:', window.location.hostname, '— add it to Firebase Auth → Settings → Authorized domains.');
+    } else {
       showToast('Sign-in failed: ' + e.message, 'danger');
     }
   }
