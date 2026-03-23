@@ -1,3 +1,9 @@
+// Initialise Bootstrap tooltips on any element with data-bs-toggle="tooltip"
+document.addEventListener("DOMContentLoaded", () => {
+  document.querySelectorAll('[data-bs-toggle="tooltip"]')
+    .forEach(el => new bootstrap.Tooltip(el));
+});
+
 // Global toast helper
 function showToast(message, type = "secondary") {
   let container = document.getElementById("toast-container");

@@ -6,20 +6,25 @@
   </div>
   <div class="d-flex gap-2 align-items-center">
     <div class="btn-group btn-group-sm" role="group" aria-label="Refresh from source">
-      <button type="button" class="btn btn-outline-secondary" id="btn-src-github" onclick="setSource('github')" title="Load from GitHub data repo">
+      <button type="button" class="btn btn-outline-secondary" id="btn-src-github" onclick="setSource('github')"
+        data-bs-toggle="tooltip" data-bs-placement="bottom" data-bs-title="Load markets from the GitHub data repo (last exported snapshot)">
         <i class="bi bi-github me-1"></i>GitHub
       </button>
-      <button type="button" class="btn btn-outline-secondary" id="btn-src-gcs" onclick="setSource('gcs')" title="Load from GCS bucket">
+      <button type="button" class="btn btn-outline-secondary" id="btn-src-gcs" onclick="setSource('gcs')"
+        data-bs-toggle="tooltip" data-bs-placement="bottom" data-bs-title="Load markets from Google Cloud Storage (last exported snapshot)">
         <i class="bi bi-cloud me-1"></i>GCS
       </button>
-      <button type="button" class="btn btn-outline-secondary" id="btn-src-api" onclick="setSource('api')" title="Load from backend API">
+      <button type="button" class="btn btn-outline-secondary" id="btn-src-api" onclick="setSource('api')"
+        data-bs-toggle="tooltip" data-bs-placement="bottom" data-bs-title="Load markets live from the backend API (always up to date)">
         <i class="bi bi-database me-1"></i>API
       </button>
     </div>
-    <button class="btn btn-outline-secondary btn-sm" onclick="triggerSync(this)" title="Kick off a sync job to write markets to GitHub and GCS">
+    <button class="btn btn-outline-secondary btn-sm" onclick="triggerSync(this)"
+      data-bs-toggle="tooltip" data-bs-placement="bottom" data-bs-title="Export the current markets list from BigQuery to GCS and commit it to the GitHub data repo">
       <i class="bi bi-arrow-repeat me-1"></i>Sync GitHub/GCS
     </button>
-    <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#itemModal" onclick="openCreateModal()">
+    <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#itemModal" onclick="openCreateModal()"
+      data-bs-placement="bottom" title="Add a new market to track">
       <i class="bi bi-plus-lg me-1"></i>New Market
     </button>
   </div>

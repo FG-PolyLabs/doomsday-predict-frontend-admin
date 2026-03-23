@@ -1,282 +1,428 @@
 {{ define "main" }}
-<div class="d-flex align-items-center justify-content-between mb-4">
-  <h2 class="h5 mb-0 fw-semibold">{{ .Title }}</h2>
-  <div class="d-flex gap-2">
-    <button class="btn btn-outline-secondary btn-sm" onclick="triggerSync(this)">
-      <i class="bi bi-arrow-repeat me-1"></i>Sync
-    </button>
-    <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#itemModal" onclick="openCreateModal()">
-      <i class="bi bi-plus-lg me-1"></i>New Price
-    </button>
+<div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+  <div class="d-flex align-items-center gap-3">
+    <h2 class="h5 mb-0 fw-semibold">{{ .Title }}</h2>
+    <span id="source-badge" class="badge bg-warning text-dark d-none"></span>
+  </div>
+  <div class="d-flex align-items-center gap-2 flex-wrap">
+    <div class="btn-group btn-group-sm" role="group" aria-label="Refresh from source">
+      <button type="button" class="btn btn-outline-secondary" id="btn-src-github" onclick="setSource('github')"
+        data-bs-toggle="tooltip" data-bs-placement="bottom" data-bs-title="Load price data from the GitHub data repo (last exported snapshot)">
+        <i class="bi bi-github me-1"></i>GitHub
+      </button>
+      <button type="button" class="btn btn-outline-secondary" id="btn-src-gcs" onclick="setSource('gcs')"
+        data-bs-toggle="tooltip" data-bs-placement="bottom" data-bs-title="Load price data from Google Cloud Storage (last exported snapshot)">
+        <i class="bi bi-cloud me-1"></i>GCS
+      </button>
+      <button type="button" class="btn btn-outline-secondary" id="btn-src-api" onclick="setSource('api')"
+        data-bs-toggle="tooltip" data-bs-placement="bottom" data-bs-title="Load price data live from the backend API (always up to date)">
+        <i class="bi bi-database me-1"></i>API
+      </button>
+    </div>
   </div>
 </div>
 
-<!-- Auth guard banner -->
+<!-- Auth guard -->
 <div id="auth-guard" class="alert alert-warning d-none">
-  <i class="bi bi-lock me-1"></i>You must be <a href="{{ "" | relURL }}">signed in</a> to manage market prices.
+  <i class="bi bi-lock me-1"></i>You must be <a href="{{ "" | relURL }}">signed in</a> to view market prices.
 </div>
 
-<!-- Loading state -->
-<div id="loading" class="text-center py-5">
+<!-- Filters -->
+<div class="card shadow-sm border-0 mb-3 d-none" id="filters-card">
+  <div class="card-body py-3">
+    <div class="row g-2 align-items-end">
+      <div class="col-sm">
+        <label class="form-label small fw-medium mb-1" for="filter-market">Market</label>
+        <select class="form-select form-select-sm" id="filter-market">
+          <option value="">— select a market —</option>
+        </select>
+      </div>
+      <div class="col-sm-auto">
+        <label class="form-label small fw-medium mb-1" for="filter-date-from">From</label>
+        <input type="date" class="form-control form-control-sm" id="filter-date-from">
+      </div>
+      <div class="col-sm-auto">
+        <label class="form-label small fw-medium mb-1" for="filter-date-to">To</label>
+        <input type="date" class="form-control form-control-sm" id="filter-date-to">
+      </div>
+      <div class="col-sm-auto">
+        <label class="form-label small fw-medium mb-1 d-block">&nbsp;</label>
+        <button class="btn btn-primary btn-sm" onclick="queryPrices()"
+          data-bs-toggle="tooltip" data-bs-placement="bottom" data-bs-title="Fetch snapshots for the selected market and date range">
+          <i class="bi bi-search me-1"></i>Query
+        </button>
+      </div>
+      <div class="col-sm-auto ms-auto d-flex align-items-end gap-2">
+        <div class="form-check form-switch mb-1" data-bs-toggle="tooltip" data-bs-placement="bottom"
+          data-bs-title="Toggle between chart and table view">
+          <input class="form-check-input" type="checkbox" role="switch" id="view-toggle" checked onchange="toggleView()">
+          <label class="form-check-label small" for="view-toggle" id="view-label">Chart</label>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Index loading spinner -->
+<div id="index-loading" class="text-center py-5 d-none">
   <div class="spinner-border text-primary" role="status"></div>
+  <p class="text-muted small mt-2">Loading markets…</p>
+</div>
+
+<!-- Query loading spinner -->
+<div id="query-loading" class="text-center py-5 d-none">
+  <div class="spinner-border text-primary" role="status"></div>
+</div>
+
+<!-- Prompt to pick a market -->
+<div id="pick-prompt" class="text-center py-5 d-none">
+  <i class="bi bi-graph-up fs-1 text-muted"></i>
+  <p class="text-muted mt-2">Select a market above and click Query.</p>
 </div>
 
 <!-- Empty state -->
 <div id="empty-state" class="text-center py-5 d-none">
   <i class="bi bi-inbox fs-1 text-muted"></i>
-  <p class="text-muted mt-2">No market prices yet. Add your first one!</p>
+  <p class="text-muted mt-2">No snapshots found for this market / date range.</p>
 </div>
 
-<!-- Prices table -->
-<div class="card shadow-sm border-0 d-none" id="items-card">
+<!-- Chart -->
+<div class="card shadow-sm border-0 d-none" id="chart-card">
+  <div class="card-body">
+    <canvas id="prices-chart" style="max-height:480px"></canvas>
+  </div>
+</div>
+
+<!-- Table -->
+<div class="card shadow-sm border-0 d-none" id="table-card">
   <div class="card-body p-0">
     <div class="table-responsive">
-      <table class="table table-hover align-middle mb-0">
+      <table class="table table-hover align-middle mb-0 small">
         <thead class="table-light">
           <tr>
-            <th class="ps-3">Card</th>
-            <th>Price</th>
-            <th>Qty</th>
-            <th>Platform</th>
-            <th>Notes</th>
-            <th class="text-end pe-3">Actions</th>
+            <th class="ps-3">Market</th>
+            <th>Question</th>
+            <th>Snapshot Time</th>
+            <th>YES %</th>
+            <th>NO %</th>
+            <th>Expiry</th>
           </tr>
         </thead>
-        <tbody id="items-tbody"></tbody>
+        <tbody id="prices-tbody"></tbody>
       </table>
-    </div>
-  </div>
-</div>
-
-<!-- Create / Edit Modal -->
-<div class="modal fade" id="itemModal" tabindex="-1">
-  <div class="modal-dialog">
-    <div class="modal-content border-0 shadow">
-      <div class="modal-header border-0 pb-0">
-        <h5 class="modal-title" id="modal-title">New Price</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-      </div>
-      <div class="modal-body">
-        <input type="hidden" id="item-id">
-        <div class="mb-3">
-          <label class="form-label small fw-medium" for="card-name">Card Name</label>
-          <input type="text" class="form-control" id="card-name" name="card_name" placeholder="Card name" required>
-        </div>
-        <div class="row g-3 mb-3">
-          <div class="col">
-            <label class="form-label small fw-medium" for="price">Price</label>
-            <input type="number" class="form-control" id="price" name="price" placeholder="0.00" step="0.01" min="0">
-          </div>
-          <div class="col">
-            <label class="form-label small fw-medium" for="quantity">Quantity</label>
-            <input type="number" class="form-control" id="quantity" name="quantity" placeholder="1" min="1">
-          </div>
-        </div>
-        <div class="mb-3">
-          <label class="form-label small fw-medium" for="platform">Platform</label>
-          <select class="form-select" id="platform" name="platform">
-            <option value=""></option>
-            <option value="TCGPlayer">TCGPlayer</option>
-            <option value="eBay">eBay</option>
-            <option value="LGS">LGS</option>
-            <option value="Trade">Trade</option>
-            <option value="Other">Other</option>
-          </select>
-        </div>
-        <div class="mb-3">
-          <label class="form-label small fw-medium" for="notes">Notes</label>
-          <textarea class="form-control" id="notes" name="notes" rows="2" placeholder="Notes (optional)"></textarea>
-        </div>
-        <div id="modal-error" class="alert alert-danger py-2 small d-none"></div>
-      </div>
-      <div class="modal-footer border-0 pt-0">
-        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
-        <button type="button" class="btn btn-primary btn-sm" id="modal-save-btn" onclick="saveItem()">Save</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- Delete confirm modal -->
-<div class="modal fade" id="deleteModal" tabindex="-1">
-  <div class="modal-dialog modal-sm">
-    <div class="modal-content border-0 shadow">
-      <div class="modal-body text-center pt-4">
-        <i class="bi bi-trash3 fs-2 text-danger"></i>
-        <p class="mt-2 mb-1 fw-medium">Delete this price entry?</p>
-        <p class="text-muted small">This cannot be undone.</p>
-      </div>
-      <div class="modal-footer border-0 justify-content-center pt-0 pb-3">
-        <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
-        <button class="btn btn-danger btn-sm" id="confirm-delete-btn">Delete</button>
-      </div>
     </div>
   </div>
 </div>
 {{ end }}
 
 {{ define "page-scripts" }}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
 <script>
-  const RESOURCE_PATH = '/transactions';
+  // 'auto' = cascade GitHub → GCS → API; explicit = user locked a source.
+  let currentSource = 'auto';
+  let pricesChart   = null;
+  let chartMode     = true;
+  let lastSnapshots = [];
 
-  const itemModal   = new bootstrap.Modal(document.getElementById('itemModal'));
-  const deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
+  const LINE_COLORS = [
+    '#0d6efd','#dc3545','#198754','#fd7e14','#6f42c1',
+    '#20c997','#ffc107','#0dcaf0','#6610f2','#d63384',
+  ];
 
-  firebase.auth().onAuthStateChanged(async user => {
-    if (!user) {
-      document.getElementById('loading').classList.add('d-none');
+  // --- auth ---
+
+  window.onPageAuthStateChanged = async function (user) {
+    if (!user || !isEmailAllowed(user.email)) {
       document.getElementById('auth-guard').classList.remove('d-none');
       return;
     }
-    await loadItems();
-  });
+    await loadIndex();
+  };
 
-  async function loadItems() {
+  // --- source selection ---
+
+  function setSource(source) {
+    currentSource = source;
+    ['github', 'gcs', 'api'].forEach(s => {
+      document.getElementById(`btn-src-${s}`).classList.toggle('active', s === source && source !== 'auto');
+    });
+    const badge = document.getElementById('source-badge');
+    badge.classList.add('d-none');
+    // Reload index from the new source, then re-query if a market is selected.
+    loadIndex().then(() => {
+      if (document.getElementById('filter-market').value) queryPrices();
+    });
+  }
+
+  function setBadge(source) {
+    const labels = { github: 'GitHub', gcs: 'GCS', api: 'API' };
+    const badge = document.getElementById('source-badge');
+    badge.textContent = `from ${labels[source] || source}`;
+    badge.classList.remove('d-none');
+  }
+
+  function markSourceButton(source) {
+    ['github', 'gcs', 'api'].forEach(s => {
+      document.getElementById(`btn-src-${s}`).classList.toggle('active', s === source);
+    });
+  }
+
+  // --- index loading (populates the market dropdown) ---
+
+  async function loadIndex() {
+    document.getElementById('filters-card').classList.add('d-none');
+    document.getElementById('index-loading').classList.remove('d-none');
+    document.getElementById('pick-prompt').classList.add('d-none');
+
     try {
-      const items = await api('GET', RESOURCE_PATH);
-      document.getElementById('loading').classList.add('d-none');
-      if (!items || items.length === 0) {
-        document.getElementById('empty-state').classList.remove('d-none');
-        return;
+      let events, resolvedSource;
+
+      const tryStatic = async (src) => {
+        const data = src === 'github'
+          ? await loadFromGitHub('index.json')
+          : await loadFromGCS('index.json');
+        return (data.events || []).map(e => ({ event_slug: e.event_slug, event_title: e.event_title, category: e.category }));
+      };
+
+      if (currentSource === 'github') {
+        events = await tryStatic('github');
+        resolvedSource = 'github';
+      } else if (currentSource === 'gcs') {
+        events = await tryStatic('gcs');
+        resolvedSource = 'gcs';
+      } else if (currentSource === 'api') {
+        const data = await api('GET', '/api/v1/events');
+        events = data.events || [];
+        resolvedSource = 'api';
+      } else {
+        // auto: GitHub → GCS → API
+        for (const src of ['github', 'gcs']) {
+          try { events = await tryStatic(src); resolvedSource = src; break; } catch (_) {}
+        }
+        if (!events) {
+          const data = await api('GET', '/api/v1/events');
+          events = data.events || [];
+          resolvedSource = 'api';
+        }
+        markSourceButton(resolvedSource);
       }
-      renderItems(items);
-      document.getElementById('items-card').classList.remove('d-none');
+
+      setBadge(resolvedSource);
+      populateMarketDropdown(events);
+
+      document.getElementById('index-loading').classList.add('d-none');
+      document.getElementById('filters-card').classList.remove('d-none');
+      document.getElementById('pick-prompt').classList.remove('d-none');
     } catch (e) {
-      document.getElementById('loading').classList.add('d-none');
-      showToast('Failed to load market prices: ' + e.message, 'danger');
+      document.getElementById('index-loading').classList.add('d-none');
+      showToast('Failed to load market list: ' + e.message, 'danger');
     }
   }
 
-  function renderItems(items) {
-    const tbody = document.getElementById('items-tbody');
-    tbody.innerHTML = items.map(item => `
+  function populateMarketDropdown(events) {
+    const sel = document.getElementById('filter-market');
+    const prev = sel.value;
+    // keep first placeholder option, replace the rest
+    while (sel.options.length > 1) sel.remove(1);
+
+    // group by category
+    const byCategory = {};
+    events.forEach(e => {
+      const cat = e.category || 'Other';
+      if (!byCategory[cat]) byCategory[cat] = [];
+      byCategory[cat].push(e);
+    });
+
+    Object.keys(byCategory).sort().forEach(cat => {
+      const grp = document.createElement('optgroup');
+      grp.label = cat;
+      byCategory[cat].forEach(e => {
+        const opt = document.createElement('option');
+        opt.value = e.event_slug;
+        opt.textContent = e.event_title;
+        grp.appendChild(opt);
+      });
+      sel.appendChild(grp);
+    });
+
+    if (prev) sel.value = prev; // restore selection after reload
+  }
+
+  // --- query ---
+
+  async function queryPrices() {
+    const slug     = document.getElementById('filter-market').value;
+    const dateFrom = document.getElementById('filter-date-from').value;
+    const dateTo   = document.getElementById('filter-date-to').value;
+
+    if (!slug) { showToast('Please select a market.', 'warning'); return; }
+
+    document.getElementById('pick-prompt').classList.add('d-none');
+    document.getElementById('empty-state').classList.add('d-none');
+    document.getElementById('chart-card').classList.add('d-none');
+    document.getElementById('table-card').classList.add('d-none');
+    document.getElementById('query-loading').classList.remove('d-none');
+
+    try {
+      let detail, resolvedSource = currentSource;
+
+      const tryStaticEvent = async (src) => {
+        const data = src === 'github'
+          ? await loadFromGitHub(`events/${slug}.json`)
+          : await loadFromGCS(`events/${slug}.json`);
+        return normalizeDetail(data);
+      };
+
+      if (currentSource === 'github') {
+        detail = await tryStaticEvent('github');
+      } else if (currentSource === 'gcs') {
+        detail = await tryStaticEvent('gcs');
+      } else if (currentSource === 'api') {
+        detail = await api('GET', `/api/v1/events/${slug}`);
+      } else {
+        // auto: GitHub → GCS → API
+        for (const src of ['github', 'gcs']) {
+          try { detail = await tryStaticEvent(src); resolvedSource = src; break; } catch (_) {}
+        }
+        if (!detail) {
+          detail = await api('GET', `/api/v1/events/${slug}`);
+          resolvedSource = 'api';
+        }
+        markSourceButton(resolvedSource);
+        setBadge(resolvedSource);
+      }
+
+      let snapshots = detail.snapshots || [];
+
+      // Client-side date filter
+      if (dateFrom) snapshots = snapshots.filter(s => s.snapshot_timestamp >= dateFrom);
+      if (dateTo)   snapshots = snapshots.filter(s => s.snapshot_timestamp <= dateTo + 'T23:59:59Z');
+
+      document.getElementById('query-loading').classList.add('d-none');
+
+      if (snapshots.length === 0) {
+        document.getElementById('empty-state').classList.remove('d-none');
+        return;
+      }
+
+      lastSnapshots = snapshots;
+      renderChart(detail.event_title, snapshots);
+      renderTable(detail.event_title, snapshots);
+      document.getElementById('chart-card').classList.toggle('d-none', !chartMode);
+      document.getElementById('table-card').classList.toggle('d-none', chartMode);
+    } catch (e) {
+      document.getElementById('query-loading').classList.add('d-none');
+      showToast('Query failed: ' + e.message, 'danger');
+    }
+  }
+
+  // Normalise static event file shape to match API shape.
+  function normalizeDetail(data) {
+    return {
+      event_slug:  data.event_slug,
+      event_title: data.event_title,
+      category:    data.category,
+      snapshots: (data.snapshots || []).map(s => ({
+        question:             s.question,
+        snapshot_timestamp:   s.snapshot_timestamp,
+        expiration_timestamp: s.expiration_timestamp || null,
+        yes_price:            s.yes_price,
+        no_price:             s.no_price,
+      })),
+    };
+  }
+
+  // --- view toggle ---
+
+  function toggleView() {
+    chartMode = document.getElementById('view-toggle').checked;
+    document.getElementById('view-label').textContent = chartMode ? 'Chart' : 'Table';
+    if (lastSnapshots.length === 0) return;
+    document.getElementById('chart-card').classList.toggle('d-none', !chartMode);
+    document.getElementById('table-card').classList.toggle('d-none', chartMode);
+  }
+
+  // --- chart ---
+
+  function renderChart(title, snapshots) {
+    // One dataset per unique question, sorted by timestamp.
+    const byQuestion = {};
+    snapshots.forEach(s => {
+      if (!byQuestion[s.question]) byQuestion[s.question] = [];
+      byQuestion[s.question].push({ x: s.snapshot_timestamp, y: +(s.yes_price * 100).toFixed(2) });
+    });
+
+    const questions = Object.keys(byQuestion).sort();
+    const datasets = questions.map((q, i) => ({
+      label: q,
+      data: byQuestion[q].sort((a, b) => a.x < b.x ? -1 : 1),
+      borderColor: LINE_COLORS[i % LINE_COLORS.length],
+      backgroundColor: 'transparent',
+      borderWidth: 2,
+      pointRadius: byQuestion[q].length > 60 ? 0 : 3,
+      tension: 0.3,
+    }));
+
+    if (pricesChart) pricesChart.destroy();
+
+    pricesChart = new Chart(document.getElementById('prices-chart'), {
+      type: 'line',
+      data: { datasets },
+      options: {
+        responsive: true,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          title: { display: !!title, text: title, font: { size: 14 } },
+          legend: { position: 'top' },
+          tooltip: {
+            callbacks: {
+              label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y.toFixed(1)}%`,
+            },
+          },
+        },
+        scales: {
+          x: {
+            type: 'time',
+            time: {
+              tooltipFormat: 'MMM d, HH:mm',
+              displayFormats: { hour: 'MMM d HH:mm', day: 'MMM d', month: 'MMM yyyy' },
+            },
+            title: { display: true, text: 'Snapshot Time (UTC)' },
+          },
+          y: {
+            min: 0,
+            max: 100,
+            title: { display: true, text: 'YES %' },
+            ticks: { callback: v => v + '%' },
+          },
+        },
+      },
+    });
+  }
+
+  // --- table ---
+
+  function renderTable(title, snapshots) {
+    document.getElementById('prices-tbody').innerHTML = snapshots.map(s => `
       <tr>
-        <td class="ps-3 fw-medium">${escHtml(item.card_name || item.name || '—')}</td>
-        <td>${item.price != null ? escHtml(String(item.price)) : '—'}</td>
-        <td>${item.quantity != null ? escHtml(String(item.quantity)) : '—'}</td>
-        <td>${escHtml(item.platform || '—')}</td>
-        <td class="text-muted">${escHtml(item.notes || '—')}</td>
-        <td class="text-end pe-3">
-          <button class="btn btn-sm btn-outline-secondary me-1" onclick='openEditModal(${JSON.stringify(item)})'>
-            <i class="bi bi-pencil"></i>
-          </button>
-          <button class="btn btn-sm btn-outline-danger" onclick="openDeleteModal('${item.id}')">
-            <i class="bi bi-trash3"></i>
-          </button>
-        </td>
+        <td class="ps-3 fw-medium small">${escHtml(title)}</td>
+        <td>${escHtml(s.question)}</td>
+        <td class="text-muted font-monospace" style="font-size:0.8em">${escHtml(s.snapshot_timestamp)}</td>
+        <td><span class="badge bg-success">${(s.yes_price * 100).toFixed(1)}%</span></td>
+        <td><span class="badge bg-danger">${(s.no_price * 100).toFixed(1)}%</span></td>
+        <td class="text-muted small">${s.expiration_timestamp ? escHtml(s.expiration_timestamp.slice(0, 10)) : '—'}</td>
       </tr>
     `).join('');
   }
 
-  function openCreateModal() {
-    document.getElementById('modal-title').textContent = 'New Price';
-    document.getElementById('item-id').value = '';
-    document.getElementById('card-name').value = '';
-    document.getElementById('price').value = '';
-    document.getElementById('quantity').value = '';
-    document.getElementById('platform').value = '';
-    document.getElementById('notes').value = '';
-    document.getElementById('modal-error').classList.add('d-none');
-  }
-
-  function openEditModal(item) {
-    document.getElementById('modal-title').textContent = 'Edit Price';
-    document.getElementById('item-id').value = item.id;
-    document.getElementById('card-name').value = item.card_name || item.name || '';
-    document.getElementById('price').value = item.price != null ? item.price : '';
-    document.getElementById('quantity').value = item.quantity != null ? item.quantity : '';
-    document.getElementById('platform').value = item.platform || '';
-    document.getElementById('notes').value = item.notes || '';
-    document.getElementById('modal-error').classList.add('d-none');
-    itemModal.show();
-  }
-
-  async function saveItem() {
-    const id       = document.getElementById('item-id').value;
-    const cardName = document.getElementById('card-name').value.trim();
-    const price    = document.getElementById('price').value;
-    const quantity = document.getElementById('quantity').value;
-    const platform = document.getElementById('platform').value;
-    const notes    = document.getElementById('notes').value.trim();
-    const errEl    = document.getElementById('modal-error');
-    errEl.classList.add('d-none');
-
-    if (!cardName) {
-      errEl.textContent = 'Card name is required.';
-      errEl.classList.remove('d-none');
-      return;
-    }
-
-    const body = {
-      card_name: cardName,
-      price:     price !== '' ? parseFloat(price) : null,
-      quantity:  quantity !== '' ? parseInt(quantity, 10) : null,
-      platform:  platform || null,
-      notes:     notes || null,
-    };
-
-    const btn = document.getElementById('modal-save-btn');
-    btn.disabled = true;
-    try {
-      if (id) {
-        await api('PUT', `${RESOURCE_PATH}/${id}`, body);
-      } else {
-        await api('POST', RESOURCE_PATH, body);
-      }
-      itemModal.hide();
-      await loadItems();
-      document.getElementById('empty-state').classList.add('d-none');
-      document.getElementById('items-card').classList.remove('d-none');
-    } catch (e) {
-      errEl.textContent = e.message;
-      errEl.classList.remove('d-none');
-    } finally {
-      btn.disabled = false;
-    }
-  }
-
-  let pendingDeleteId = null;
-
-  function openDeleteModal(id) {
-    pendingDeleteId = id;
-    deleteModal.show();
-  }
-
-  document.getElementById('confirm-delete-btn').addEventListener('click', async () => {
-    if (!pendingDeleteId) return;
-    try {
-      await api('DELETE', `${RESOURCE_PATH}/${pendingDeleteId}`);
-      deleteModal.hide();
-      await loadItems();
-    } catch (e) {
-      showToast('Delete failed: ' + e.message, 'danger');
-    }
-  });
-
-  async function triggerSync(btn) {
-    btn.disabled = true;
-    const icon = btn.querySelector('i');
-    if (icon) icon.classList.add('spin');
-    try {
-      await api('POST', `${RESOURCE_PATH}/sync`);
-      showToast('Sync triggered successfully.', 'success');
-      await loadItems();
-    } catch (e) {
-      showToast('Sync failed: ' + e.message, 'danger');
-    } finally {
-      btn.disabled = false;
-      if (icon) icon.classList.remove('spin');
-    }
-  }
-
   function escHtml(str) {
     const d = document.createElement('div');
-    d.appendChild(document.createTextNode(str));
+    d.appendChild(document.createTextNode(String(str)));
     return d.innerHTML;
   }
 </script>
 <style>
-  @keyframes spin { to { transform: rotate(360deg); } }
-  .spin { display: inline-block; animation: spin 1s linear infinite; }
+  #prices-chart { max-height: 480px; }
 </style>
 {{ end }}
