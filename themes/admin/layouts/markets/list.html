@@ -12,7 +12,7 @@
       <button type="button" class="btn btn-outline-secondary" id="btn-src-gcs" onclick="setSource('gcs')" title="Load from GCS bucket">
         <i class="bi bi-cloud me-1"></i>GCS
       </button>
-      <button type="button" class="btn btn-outline-secondary active" id="btn-src-api" onclick="setSource('api')" title="Load from backend API">
+      <button type="button" class="btn btn-outline-secondary" id="btn-src-api" onclick="setSource('api')" title="Load from backend API">
         <i class="bi bi-database me-1"></i>API
       </button>
     </div>
@@ -129,26 +129,27 @@
   const itemModal   = new bootstrap.Modal(document.getElementById('itemModal'));
   const deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
 
-  let currentSource = 'api';
+  // 'auto' = try GitHub → GCS → API in order; explicit = locked to that source.
+  let currentSource = 'auto';
   let staticMarkets = null; // cache for GitHub/GCS data
 
   function setSource(source) {
     currentSource = source;
     staticMarkets = null;
     ['github', 'gcs', 'api'].forEach(s => {
-      document.getElementById(`btn-src-${s}`).classList.toggle('active', s === source);
+      document.getElementById(`btn-src-${s}`).classList.toggle('active', s === source && source !== 'auto');
     });
-    const badge = document.getElementById('source-badge');
-    if (source !== 'api') {
-      badge.textContent = `data from ${source}`;
-      badge.classList.remove('d-none');
-    } else {
-      badge.classList.add('d-none');
-    }
     document.getElementById('loading').classList.remove('d-none');
     document.getElementById('items-card').classList.add('d-none');
     document.getElementById('empty-state').classList.add('d-none');
     loadItems();
+  }
+
+  function setBadge(source) {
+    const badge = document.getElementById('source-badge');
+    const labels = { github: 'GitHub', gcs: 'GCS', api: 'API' };
+    badge.textContent = `from ${labels[source] || source}`;
+    badge.classList.remove('d-none');
   }
 
   window.onPageAuthStateChanged = async function (user) {
@@ -166,12 +167,32 @@
       if (currentSource === 'github') {
         if (!staticMarkets) staticMarkets = await loadFromGitHub('data/markets.jsonl');
         markets = staticMarkets;
+        setBadge('github');
       } else if (currentSource === 'gcs') {
         if (!staticMarkets) staticMarkets = await loadFromGCS('data/markets.jsonl');
         markets = staticMarkets;
-      } else {
+        setBadge('gcs');
+      } else if (currentSource === 'api') {
         const data = await api('GET', RESOURCE_PATH);
         markets = data.markets || [];
+        setBadge('api');
+      } else {
+        // auto: GitHub → GCS → API
+        try {
+          staticMarkets = await loadFromGitHub('data/markets.jsonl');
+          markets = staticMarkets;
+          setBadge('github');
+        } catch (_) {
+          try {
+            staticMarkets = await loadFromGCS('data/markets.jsonl');
+            markets = staticMarkets;
+            setBadge('gcs');
+          } catch (_) {
+            const data = await api('GET', RESOURCE_PATH);
+            markets = data.markets || [];
+            setBadge('api');
+          }
+        }
       }
       document.getElementById('loading').classList.add('d-none');
       if (!markets || markets.length === 0) {
@@ -262,7 +283,7 @@
       }
       itemModal.hide();
       staticMarkets = null;
-      setSource('api');
+      setSource('auto');
     } catch (e) {
       errEl.textContent = e.message;
       errEl.classList.remove('d-none');
