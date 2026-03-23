@@ -1,3 +1,23 @@
+// Fetch a JSON file directly from GitHub (explicit — no fallback).
+async function loadFromGitHub(filename) {
+  const { githubDataRepo } = window.DATA_CONFIG || {};
+  if (!githubDataRepo) throw new Error('DATA_CONFIG.githubDataRepo is not set');
+  const url = `https://raw.githubusercontent.com/${githubDataRepo}/main/${filename}?t=${Date.now()}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`GitHub fetch failed for ${filename}: HTTP ${res.status}`);
+  return res.json();
+}
+
+// Fetch a JSON file directly from GCS (explicit — no fallback).
+async function loadFromGCS(filename) {
+  const { gcsBucket } = window.DATA_CONFIG || {};
+  if (!gcsBucket) throw new Error('DATA_CONFIG.gcsBucket is not set');
+  const url = `https://storage.googleapis.com/${gcsBucket}/${filename}?t=${Date.now()}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`GCS fetch failed for ${filename}: HTTP ${res.status}`);
+  return res.json();
+}
+
 // Fetches a JSON file: tries GitHub raw first, falls back to GCS.
 // Requires window.DATA_CONFIG = { gcsBucket, githubDataRepo }
 async function loadJsonData(filename) {

@@ -12,15 +12,15 @@
       <!-- Auth-required links (hidden until signed in) -->
       <ul class="navbar-nav me-auto" id="nav-links" style="display:none!important">
         <li class="nav-item">
-          <a class="nav-link nav-admin-only{{ if eq .RelPermalink "/items/" }} active{{ end }}"
-             href="{{ "items/" | relURL }}" title="Admin access required">
-            <i class="bi bi-list-ul me-1"></i>Items
+          <a class="nav-link nav-admin-only{{ if eq .RelPermalink "/markets/" }} active{{ end }}"
+             href="{{ "markets/" | relURL }}" title="Admin access required">
+            <i class="bi bi-list-ul me-1"></i>Markets Tracked
           </a>
         </li>
         <li class="nav-item">
-          <a class="nav-link nav-admin-only{{ if eq .RelPermalink "/transactions/" }} active{{ end }}"
-             href="{{ "transactions/" | relURL }}" title="Admin access required">
-            <i class="bi bi-receipt me-1"></i>Transactions
+          <a class="nav-link nav-admin-only{{ if eq .RelPermalink "/prices/" }} active{{ end }}"
+             href="{{ "prices/" | relURL }}" title="Admin access required">
+            <i class="bi bi-graph-up me-1"></i>Market Prices
           </a>
         </li>
         <li class="nav-item">

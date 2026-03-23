@@ -6,14 +6,14 @@
       <i class="bi bi-arrow-repeat me-1"></i>Sync
     </button>
     <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#itemModal" onclick="openCreateModal()">
-      <i class="bi bi-plus-lg me-1"></i>New Market
+      <i class="bi bi-plus-lg me-1"></i>New Price
     </button>
   </div>
 </div>
 
 <!-- Auth guard banner -->
 <div id="auth-guard" class="alert alert-warning d-none">
-  <i class="bi bi-lock me-1"></i>You must be <a href="{{ "" | relURL }}">signed in</a> to manage markets.
+  <i class="bi bi-lock me-1"></i>You must be <a href="{{ "" | relURL }}">signed in</a> to manage market prices.
 </div>
 
 <!-- Loading state -->
@@ -24,20 +24,21 @@
 <!-- Empty state -->
 <div id="empty-state" class="text-center py-5 d-none">
   <i class="bi bi-inbox fs-1 text-muted"></i>
-  <p class="text-muted mt-2">No markets yet. Add your first one!</p>
+  <p class="text-muted mt-2">No market prices yet. Add your first one!</p>
 </div>
 
-<!-- Items table -->
+<!-- Prices table -->
 <div class="card shadow-sm border-0 d-none" id="items-card">
   <div class="card-body p-0">
     <div class="table-responsive">
       <table class="table table-hover align-middle mb-0">
         <thead class="table-light">
           <tr>
-            <th class="ps-3">Slug / Tag</th>
-            <th>Slug Prefix</th>
-            <th>Category</th>
-            <th>Active</th>
+            <th class="ps-3">Card</th>
+            <th>Price</th>
+            <th>Qty</th>
+            <th>Platform</th>
+            <th>Notes</th>
             <th class="text-end pe-3">Actions</th>
           </tr>
         </thead>
@@ -52,33 +53,39 @@
   <div class="modal-dialog">
     <div class="modal-content border-0 shadow">
       <div class="modal-header border-0 pb-0">
-        <h5 class="modal-title" id="modal-title">New Market</h5>
+        <h5 class="modal-title" id="modal-title">New Price</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
         <input type="hidden" id="item-id">
         <div class="mb-3">
-          <label class="form-label small fw-medium" for="slug">Slug</label>
-          <input type="text" class="form-control" id="slug" placeholder="e.g. trump-out-as-president-before-2027">
-          <div class="form-text">Exact Polymarket event slug (single-event mode).</div>
+          <label class="form-label small fw-medium" for="card-name">Card Name</label>
+          <input type="text" class="form-control" id="card-name" name="card_name" placeholder="Card name" required>
+        </div>
+        <div class="row g-3 mb-3">
+          <div class="col">
+            <label class="form-label small fw-medium" for="price">Price</label>
+            <input type="number" class="form-control" id="price" name="price" placeholder="0.00" step="0.01" min="0">
+          </div>
+          <div class="col">
+            <label class="form-label small fw-medium" for="quantity">Quantity</label>
+            <input type="number" class="form-control" id="quantity" name="quantity" placeholder="1" min="1">
+          </div>
         </div>
         <div class="mb-3">
-          <label class="form-label small fw-medium" for="tag">Tag</label>
-          <input type="text" class="form-control" id="tag" placeholder="e.g. us-iran">
-          <div class="form-text">Polymarket tag slug (series-discovery mode).</div>
+          <label class="form-label small fw-medium" for="platform">Platform</label>
+          <select class="form-select" id="platform" name="platform">
+            <option value=""></option>
+            <option value="TCGPlayer">TCGPlayer</option>
+            <option value="eBay">eBay</option>
+            <option value="LGS">LGS</option>
+            <option value="Trade">Trade</option>
+            <option value="Other">Other</option>
+          </select>
         </div>
         <div class="mb-3">
-          <label class="form-label small fw-medium" for="slug-prefix">Slug Prefix</label>
-          <input type="text" class="form-control" id="slug-prefix" placeholder="e.g. us-x-iran-ceasefire">
-          <div class="form-text">Filter tag results to slugs starting with this prefix.</div>
-        </div>
-        <div class="mb-3">
-          <label class="form-label small fw-medium" for="category">Category</label>
-          <input type="text" class="form-control" id="category" placeholder="e.g. Geopolitics">
-        </div>
-        <div class="mb-3 form-check">
-          <input type="checkbox" class="form-check-input" id="active" checked>
-          <label class="form-check-label small fw-medium" for="active">Active</label>
+          <label class="form-label small fw-medium" for="notes">Notes</label>
+          <textarea class="form-control" id="notes" name="notes" rows="2" placeholder="Notes (optional)"></textarea>
         </div>
         <div id="modal-error" class="alert alert-danger py-2 small d-none"></div>
       </div>
@@ -96,7 +103,7 @@
     <div class="modal-content border-0 shadow">
       <div class="modal-body text-center pt-4">
         <i class="bi bi-trash3 fs-2 text-danger"></i>
-        <p class="mt-2 mb-1 fw-medium">Delete this market?</p>
+        <p class="mt-2 mb-1 fw-medium">Delete this price entry?</p>
         <p class="text-muted small">This cannot be undone.</p>
       </div>
       <div class="modal-footer border-0 justify-content-center pt-0 pb-3">
@@ -110,52 +117,50 @@
 
 {{ define "page-scripts" }}
 <script>
-  const RESOURCE_PATH = '/api/v1/markets';
+  const RESOURCE_PATH = '/transactions';
 
   const itemModal   = new bootstrap.Modal(document.getElementById('itemModal'));
   const deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
 
-  window.onPageAuthStateChanged = async function (user) {
-    if (!user || !isEmailAllowed(user.email)) {
+  firebase.auth().onAuthStateChanged(async user => {
+    if (!user) {
       document.getElementById('loading').classList.add('d-none');
       document.getElementById('auth-guard').classList.remove('d-none');
       return;
     }
     await loadItems();
-  };
+  });
 
   async function loadItems() {
     try {
-      const data = await api('GET', RESOURCE_PATH);
+      const items = await api('GET', RESOURCE_PATH);
       document.getElementById('loading').classList.add('d-none');
-      const markets = data.markets || [];
-      if (markets.length === 0) {
+      if (!items || items.length === 0) {
         document.getElementById('empty-state').classList.remove('d-none');
         return;
       }
-      renderItems(markets);
+      renderItems(items);
       document.getElementById('items-card').classList.remove('d-none');
     } catch (e) {
       document.getElementById('loading').classList.add('d-none');
-      showToast('Failed to load markets: ' + e.message, 'danger');
+      showToast('Failed to load market prices: ' + e.message, 'danger');
     }
   }
 
-  function renderItems(markets) {
+  function renderItems(items) {
     const tbody = document.getElementById('items-tbody');
-    tbody.innerHTML = markets.map(m => `
+    tbody.innerHTML = items.map(item => `
       <tr>
-        <td class="ps-3 fw-medium font-monospace" style="font-size:0.85em">${escHtml(m.Slug || m.Tag || '—')}</td>
-        <td class="font-monospace text-muted" style="font-size:0.85em">${escHtml(m.SlugPrefix || '—')}</td>
-        <td><span class="badge bg-secondary">${escHtml(m.Category || '—')}</span></td>
-        <td>${m.Active
-          ? '<span class="badge bg-success">Active</span>'
-          : '<span class="badge bg-secondary">Inactive</span>'}</td>
+        <td class="ps-3 fw-medium">${escHtml(item.card_name || item.name || '—')}</td>
+        <td>${item.price != null ? escHtml(String(item.price)) : '—'}</td>
+        <td>${item.quantity != null ? escHtml(String(item.quantity)) : '—'}</td>
+        <td>${escHtml(item.platform || '—')}</td>
+        <td class="text-muted">${escHtml(item.notes || '—')}</td>
         <td class="text-end pe-3">
-          <button class="btn btn-sm btn-outline-secondary me-1" onclick='openEditModal(${JSON.stringify(m)})'>
+          <button class="btn btn-sm btn-outline-secondary me-1" onclick='openEditModal(${JSON.stringify(item)})'>
             <i class="bi bi-pencil"></i>
           </button>
-          <button class="btn btn-sm btn-outline-danger" onclick="openDeleteModal('${escHtml(m.ID)}')">
+          <button class="btn btn-sm btn-outline-danger" onclick="openDeleteModal('${item.id}')">
             <i class="bi bi-trash3"></i>
           </button>
         </td>
@@ -164,62 +169,64 @@
   }
 
   function openCreateModal() {
-    document.getElementById('modal-title').textContent = 'New Market';
+    document.getElementById('modal-title').textContent = 'New Price';
     document.getElementById('item-id').value = '';
-    document.getElementById('slug').value = '';
-    document.getElementById('tag').value = '';
-    document.getElementById('slug-prefix').value = '';
-    document.getElementById('category').value = '';
-    document.getElementById('active').checked = true;
+    document.getElementById('card-name').value = '';
+    document.getElementById('price').value = '';
+    document.getElementById('quantity').value = '';
+    document.getElementById('platform').value = '';
+    document.getElementById('notes').value = '';
     document.getElementById('modal-error').classList.add('d-none');
   }
 
-  function openEditModal(m) {
-    document.getElementById('modal-title').textContent = 'Edit Market';
-    document.getElementById('item-id').value = m.ID;
-    document.getElementById('slug').value = m.Slug || '';
-    document.getElementById('tag').value = m.Tag || '';
-    document.getElementById('slug-prefix').value = m.SlugPrefix || '';
-    document.getElementById('category').value = m.Category || '';
-    document.getElementById('active').checked = m.Active;
+  function openEditModal(item) {
+    document.getElementById('modal-title').textContent = 'Edit Price';
+    document.getElementById('item-id').value = item.id;
+    document.getElementById('card-name').value = item.card_name || item.name || '';
+    document.getElementById('price').value = item.price != null ? item.price : '';
+    document.getElementById('quantity').value = item.quantity != null ? item.quantity : '';
+    document.getElementById('platform').value = item.platform || '';
+    document.getElementById('notes').value = item.notes || '';
     document.getElementById('modal-error').classList.add('d-none');
     itemModal.show();
   }
 
   async function saveItem() {
     const id       = document.getElementById('item-id').value;
-    const slug     = document.getElementById('slug').value.trim();
-    const tag      = document.getElementById('tag').value.trim();
-    const prefix   = document.getElementById('slug-prefix').value.trim();
-    const category = document.getElementById('category').value.trim();
-    const active   = document.getElementById('active').checked;
+    const cardName = document.getElementById('card-name').value.trim();
+    const price    = document.getElementById('price').value;
+    const quantity = document.getElementById('quantity').value;
+    const platform = document.getElementById('platform').value;
+    const notes    = document.getElementById('notes').value.trim();
     const errEl    = document.getElementById('modal-error');
     errEl.classList.add('d-none');
 
-    if (!slug && !tag) {
-      errEl.textContent = 'Slug or tag is required.';
+    if (!cardName) {
+      errEl.textContent = 'Card name is required.';
       errEl.classList.remove('d-none');
       return;
     }
-    if (!category) {
-      errEl.textContent = 'Category is required.';
-      errEl.classList.remove('d-none');
-      return;
-    }
+
+    const body = {
+      card_name: cardName,
+      price:     price !== '' ? parseFloat(price) : null,
+      quantity:  quantity !== '' ? parseInt(quantity, 10) : null,
+      platform:  platform || null,
+      notes:     notes || null,
+    };
 
     const btn = document.getElementById('modal-save-btn');
     btn.disabled = true;
     try {
       if (id) {
-        await api('PATCH', `${RESOURCE_PATH}/${id}`, { category, active });
+        await api('PUT', `${RESOURCE_PATH}/${id}`, body);
       } else {
-        await api('POST', RESOURCE_PATH, { slug, tag, slug_prefix: prefix, category, active });
+        await api('POST', RESOURCE_PATH, body);
       }
       itemModal.hide();
-      document.getElementById('loading').classList.remove('d-none');
-      document.getElementById('items-card').classList.add('d-none');
-      document.getElementById('empty-state').classList.add('d-none');
       await loadItems();
+      document.getElementById('empty-state').classList.add('d-none');
+      document.getElementById('items-card').classList.remove('d-none');
     } catch (e) {
       errEl.textContent = e.message;
       errEl.classList.remove('d-none');
@@ -240,9 +247,6 @@
     try {
       await api('DELETE', `${RESOURCE_PATH}/${pendingDeleteId}`);
       deleteModal.hide();
-      document.getElementById('loading').classList.remove('d-none');
-      document.getElementById('items-card').classList.add('d-none');
-      document.getElementById('empty-state').classList.add('d-none');
       await loadItems();
     } catch (e) {
       showToast('Delete failed: ' + e.message, 'danger');
@@ -254,8 +258,9 @@
     const icon = btn.querySelector('i');
     if (icon) icon.classList.add('spin');
     try {
-      await api('POST', '/api/v1/jobs/run', { mode: 'all', active_only: true });
-      showToast('Sync triggered — job is running.', 'success');
+      await api('POST', `${RESOURCE_PATH}/sync`);
+      showToast('Sync triggered successfully.', 'success');
+      await loadItems();
     } catch (e) {
       showToast('Sync failed: ' + e.message, 'danger');
     } finally {
