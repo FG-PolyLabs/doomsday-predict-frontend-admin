@@ -298,10 +298,14 @@
     const icon = btn.querySelector('i');
     if (icon) icon.classList.add('spin');
     try {
-      await api('POST', '/api/v1/jobs/run', { mode: 'all', active_only: true });
-      showToast('Sync triggered — job is running.', 'success');
+      const result = await api('POST', '/api/v1/markets/export');
+      const githubPart = result.github_sha
+        ? ` · GitHub <code>${result.github_sha.slice(0, 7)}</code>`
+        : (result.error ? ` · GitHub failed` : '');
+      showToast(`Exported ${result.count} markets to GCS${githubPart}`, 'success');
+      staticMarkets = null; // invalidate cache so next GitHub/GCS load picks up fresh data
     } catch (e) {
-      showToast('Sync failed: ' + e.message, 'danger');
+      showToast('Export failed: ' + e.message, 'danger');
     } finally {
       btn.disabled = false;
       if (icon) icon.classList.remove('spin');
