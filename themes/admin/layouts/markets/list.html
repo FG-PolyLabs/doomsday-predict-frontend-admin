@@ -164,11 +164,11 @@
     try {
       let markets;
       if (currentSource === 'github') {
-        if (!staticMarkets) staticMarkets = await loadFromGitHub('markets.json');
-        markets = staticMarkets.markets || staticMarkets;
+        if (!staticMarkets) staticMarkets = await loadFromGitHub('data/markets.jsonl');
+        markets = staticMarkets;
       } else if (currentSource === 'gcs') {
-        if (!staticMarkets) staticMarkets = await loadFromGCS('markets.json');
-        markets = staticMarkets.markets || staticMarkets;
+        if (!staticMarkets) staticMarkets = await loadFromGCS('data/markets.jsonl');
+        markets = staticMarkets;
       } else {
         const data = await api('GET', RESOURCE_PATH);
         markets = data.markets || [];
