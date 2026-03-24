@@ -7,11 +7,13 @@ async function _parseDataResponse(filename, res) {
   return JSON.parse(text);
 }
 
-// Fetch a JSON/JSONL file directly from GitHub (explicit — no fallback).
+// Fetch a JSON/JSONL file directly from GitHub via jsDelivr CDN (explicit — no fallback).
+// Uses jsDelivr instead of raw.githubusercontent.com because GitHub's CDN omits Origin
+// from its Vary header, causing browsers to receive cached responses without CORS headers.
 async function loadFromGitHub(filename) {
   const { githubDataRepo } = window.DATA_CONFIG || {};
   if (!githubDataRepo) throw new Error('DATA_CONFIG.githubDataRepo is not set');
-  const url = `https://raw.githubusercontent.com/${githubDataRepo}/main/${filename}?t=${Date.now()}`;
+  const url = `https://cdn.jsdelivr.net/gh/${githubDataRepo}@main/${filename}`;
   const res = await fetch(url);
   if (!res.ok) throw new Error(`GitHub fetch failed for ${filename}: HTTP ${res.status}`);
   return _parseDataResponse(filename, res);
@@ -34,14 +36,14 @@ async function loadJsonData(filename) {
 
   console.debug(`[data-loader] loading ${filename} | githubDataRepo=${githubDataRepo} | gcsBucket=${gcsBucket}`);
 
-  // --- Try GitHub raw ---
+  // --- Try GitHub (via jsDelivr CDN — guarantees CORS) ---
   if (githubDataRepo) {
-    const githubUrl = `https://raw.githubusercontent.com/${githubDataRepo}/main/${filename}?t=${Date.now()}`;
+    const githubUrl = `https://cdn.jsdelivr.net/gh/${githubDataRepo}@main/${filename}`;
     console.debug(`[data-loader] trying GitHub: ${githubUrl}`);
     try {
       const res = await fetch(githubUrl);
       console.debug(`[data-loader] GitHub response: ${res.status} for ${filename}`);
-      if (res.ok) return await res.json();
+      if (res.ok) return await _parseDataResponse(filename, res);
       console.warn(`[data-loader] GitHub returned ${res.status} for ${filename}, falling back to GCS`);
     } catch (e) {
       console.warn(`[data-loader] GitHub fetch threw for ${filename}:`, e);
