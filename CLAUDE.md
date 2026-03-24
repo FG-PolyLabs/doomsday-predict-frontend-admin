@@ -25,8 +25,8 @@ For cross-repo tasks, use the **multi-repo** custom agent (`.claude/agents/multi
 | Resource | Details |
 |----------|---------|
 | BigQuery dataset | `fg-polylabs.doomsday` |
-| GCS bucket | `gs://doomsday` |
-| Cloud Run API | To be created in `us-central1` |
+| GCS bucket | `gs://fg-polylabs-doomsday` |
+| Cloud Run API | `https://doomsday-api-846376753241.us-central1.run.app` |
 | Cloud Run scheduled job | `doomsday-polymarket` (us-central1) — already exists |
 
 ## This Repo's Architecture
@@ -35,7 +35,7 @@ For cross-repo tasks, use the **multi-repo** custom agent (`.claude/agents/multi
 - **Theme:** Custom theme (`themes/admin/`) — Bootstrap 5, no external theme dependency
 - **Auth:** Firebase Authentication (`collection-showcase-auth` project) — Google sign-in; ID token attached to all API calls
 - **Backend communication:** `api()` helper in `static/js/api.js` — attaches `Authorization: Bearer <token>` automatically
-- **Data reads:** `loadJsonData()` in `static/js/data-loader.js` — GitHub Raw first, GCS fallback
+- **Data reads:** `loadFromGitHub()` / `loadFromGCS()` in `static/js/data-loader.js` — jsDelivr CDN (GitHub) first, GCS fallback. Uses jsDelivr instead of raw.githubusercontent.com to guarantee reliable CORS headers.
 - **Deployment:** GitHub Pages via GitHub Actions (`.github/workflows/deploy.yml`)
 
 ## Key Files
@@ -48,7 +48,7 @@ For cross-repo tasks, use the **multi-repo** custom agent (`.claude/agents/multi
 | `static/js/firebase-init.js` | Firebase app init, `authSignOut()`, `isEmailAllowed()`, auth state listener |
 | `static/js/api.js` | Authenticated `api(method, path, body)` helper + `qs()` query builder |
 | `static/js/app.js` | Global `showToast()` utility |
-| `static/js/data-loader.js` | `loadJsonData(filename)` — GitHub-first, GCS-fallback data fetching |
+| `static/js/data-loader.js` | `loadFromGitHub()` / `loadFromGCS()` / `loadJsonData()` — jsDelivr-first, GCS-fallback data fetching |
 | `static/css/app.css` | Minimal style overrides on top of Bootstrap 5 |
 | `.env.example` | Template for all environment variables |
 

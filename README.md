@@ -26,8 +26,8 @@ cd doomsday-predict-frontend-admin
 Admin browser
       │
       │  Reads (static JSON)
-      ├──────────────────────► GitHub Raw (doomsday-predict-data)
-      │                               └── GCS fallback (gs://doomsday)
+      ├──────────────────────► jsDelivr CDN → doomsday-predict-data (GitHub)
+      │                               └── GCS fallback (gs://fg-polylabs-doomsday)
       │
       │  Writes (CRUD)
       └──────────────────────► Cloud Run API (doomsday-predict-analytics)
@@ -42,7 +42,7 @@ Admin browser
 - **Bootstrap 5** — UI framework
 - **Firebase Auth** (`collection-showcase-auth` project) — Google sign-in, ID token issuance
 - **GitHub Pages** — hosting via GitHub Actions
-- **GCP project `fg-polylabs`** — BigQuery (`doomsday` dataset), GCS (`doomsday` bucket), Cloud Run
+- **GCP project `fg-polylabs`** — BigQuery (`doomsday` dataset), GCS (`fg-polylabs-doomsday` bucket), Cloud Run
 
 ## Local Development
 
