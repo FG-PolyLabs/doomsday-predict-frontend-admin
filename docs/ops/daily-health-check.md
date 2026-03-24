@@ -1,6 +1,6 @@
 # Daily Job Health Check Runbook
 
-Run this after the scheduled jobs complete (typically early morning). Work through each step in order — a failure in an earlier step may explain failures downstream.
+Run this after the scheduled jobs complete (typically early morning).
 
 **GCP project:** `fg-polylabs`
 **BigQuery dataset:** `fg-polylabs.doomsday`
@@ -9,100 +9,82 @@ Run this after the scheduled jobs complete (typically early morning). Work throu
 
 ---
 
-## Step 1 — Daily Exporter
+## Running the Check
 
-**Purpose:** Exports market snapshots to GCS; commits tracked market lists to GitHub.
+When asked to validate the application or check job health, Claude will execute the health-check script:
 
-**Checks:**
-1. Open the [GCS bucket](https://console.cloud.google.com/storage/browser/fg-polylabs-doomsday) and confirm data files were updated today.
-2. Open [doomsday-predict-data on GitHub](https://github.com/FG-PolyLabs/doomsday-predict-data) and check recent commits.
+```bash
+./scripts/health-check.sh
+```
 
-**Pass criteria:**
-- GCS files show today's date.
-- GitHub files may be older — this is expected. The exporter only commits when tracked markets change; data files live exclusively on GCS.
+The script covers all five steps below and prints a pass/warn/fail summary. It requires `gcloud` (authenticated to `fg-polylabs`) and `python3`.
 
 ---
 
-## Step 2 — Doomsday Exporter (Cloud Run Job)
+## What the Script Checks
+
+### Step 1 — Cloud Run Jobs: Last Run
+
+Confirms both `doomsday-exporter` and `doomsday-polymarket` ran today.
+
+**Pass:** Last run timestamp is today's date.
+
+---
+
+### Step 2 — Doomsday Exporter
 
 **Purpose:** Exports doomsday event data as JSON to GCS (and optionally Drive).
 
-**Checks:**
-1. Go to [Cloud Run Jobs](https://console.cloud.google.com/run/jobs?project=fg-polylabs).
-2. Find the doomsday exporter job and open the most recent execution.
-3. Confirm status is **Succeeded**.
-4. Open logs and scan for errors.
+Checks latest execution status and scans logs for:
+- `GCS done` — confirms data was written to GCS
+- Drive 403 errors — flagged as warnings only (known issue)
+- Any other errors — flagged as failures
 
-**Pass criteria:**
-- Execution status: Succeeded.
-- No unexpected fatal errors.
+**Pass:** Execution succeeded and GCS write line present in logs.
 
-**Known issues (do not block validation):**
-- `Drive: write <file>.json: googleapi: Error 403: Service Accounts do not have storage quota` — tracked in the backlog below. GCS writes still succeed, so exports are partially functional.
+**Known issues (warnings, not failures):**
+- Drive writes fail with `403: storageQuotaExceeded` or `insufficientParentPermissions` — tracked in backlog. GCS writes still succeed.
 
 ---
 
-## Step 3 — Daily Data Fetch (`doomsday-polymarket`)
+### Step 3 — doomsday-polymarket
 
 **Purpose:** Fetches Polymarket data and writes it into BigQuery.
 
-**Checks:**
-1. Go to [Cloud Run Jobs](https://console.cloud.google.com/run/jobs?project=fg-polylabs).
-2. Find `doomsday-polymarket` (us-central1) and open the most recent execution.
-3. Confirm status is **Succeeded**.
-4. Scan logs for errors and warnings. Note any markets that failed to fetch.
+Checks latest execution status and scans logs for:
+- `new rows inserted` — confirms BQ ingest succeeded
+- `GCS done` — confirms GCS export succeeded
+- Fetch warnings — counted and reported but not a failure
+- Drive 403 errors — flagged as warnings only (known issue)
+- Any other errors — flagged as failures
 
-**Pass criteria:**
-- Execution status: Succeeded.
-- Fetch warnings for individual markets are acceptable (closed or delisted markets may not be available).
-- No unexpected fatal errors.
+**Pass:** Execution succeeded and BQ insert line present in logs.
 
-**Known issues (do not block validation):**
-- Job logs show Drive writes — this feature was believed to be removed. Tracked in the backlog below.
-- Recurring fetch warnings for the same markets may indicate those markets should be removed from the tracked list.
+**Known issues (warnings, not failures):**
+- Fetch warnings for individual markets are expected (closed/expired markets return HTTP 400 from Polymarket).
+- Drive writes appear in logs — feature believed removed, tracked in backlog.
 
 ---
 
-## Step 4 — BigQuery Data Validation
+### Step 4 — BigQuery Data Validation
 
-**Purpose:** Confirm yesterday's Polymarket data was ingested successfully.
+**Purpose:** Confirm yesterday's data was ingested into `market_snapshots`.
 
-**Check:** Run the following in the [BigQuery console](https://console.cloud.google.com/bigquery?project=fg-polylabs):
+Queries via the BigQuery REST API (the `bq` CLI has a dependency issue in this environment) and prints row counts for the last 5 days.
 
-```sql
-SELECT
-  DATE(timestamp) AS date,
-  COUNT(*)        AS row_count
-FROM `fg-polylabs.doomsday.<table_name>`
-WHERE DATE(timestamp) = DATE_SUB(CURRENT_DATE(), INTERVAL 1 DAY)
-GROUP BY 1
-```
-
-> Replace `<table_name>` with the relevant table (e.g., `polymarket_snapshots`).
-
-**Pass criteria:**
-- At least one row returned for yesterday's date.
-- Row count is within the normal range for that table (compare against the prior few days).
+**Pass:** At least one row exists for yesterday's `snapshot_date`.
 
 ---
 
-## Step 5 — Service Liveness
+### Step 5 — Service Liveness
 
-**Purpose:** Confirm the admin frontend and backend API are up.
+**Purpose:** Confirm the Cloud Run API is responding.
 
-**Checks:**
+Hits the API root and checks for a valid HTTP response. A `404` at `/` is expected (no root handler exists) and counts as passing. Unreachable (`000`) or unexpected 5xx responses are failures.
 
-1. Open the admin frontend and confirm the page loads and auth works.
-2. Hit the API to confirm it's responding:
+**Pass:** HTTP response received from the API (any non-5xx, non-unreachable code).
 
-```bash
-curl -s -o /dev/null -w "%{http_code}" \
-  https://doomsday-api-846376753241.us-central1.run.app/health
-```
-
-**Pass criteria:**
-- Frontend loads without errors.
-- API returns `200` (or whatever the expected health-check status is).
+> **Note:** The frontend (GitHub Pages) requires a browser check and is not covered by the script.
 
 ---
 
@@ -117,9 +99,9 @@ curl -s -o /dev/null -w "%{http_code}" \
 
 ## Suggested Improvements
 
-1. **Automate the BQ validation** — Create a scheduled BigQuery query or Looker Studio dashboard showing daily row counts per table, so the manual query step becomes a single URL to open.
-2. **Cloud Monitoring alerts** — Set up job-failure alerts on Cloud Run so you're paged without running this runbook manually every day.
-3. **Log-based metrics** — Add Cloud Logging metrics for job success/failure to get a single dashboard across all jobs.
-4. **Track expected fetch warnings** — Maintain a list of known-bad or closed markets so new failures are easy to spot against the baseline noise.
-5. **Resolve Drive issues** — Either fix the Drive 403 quota problem (issues #1) or remove Drive writes from both exporters if GCS is the sole intended destination (issue #2). Resolving both cleans up the logs and removes ambiguity in future checks.
-6. **API health endpoint** — If `/health` doesn't exist on the Cloud Run API, add a lightweight endpoint that returns `200 OK` so Step 5 is reliable and scriptable.
+1. **Automate the BQ validation** — Create a scheduled BigQuery query or Looker Studio dashboard showing daily row counts, so trends are visible without running the script.
+2. **Cloud Monitoring alerts** — Set up job-failure alerts on Cloud Run so failures page you automatically.
+3. **Track expected fetch warnings** — Maintain a list of known-bad or closed markets so new failures stand out against the baseline noise.
+4. **Resolve Drive issues** — Fix the Drive 403 quota problem (issue #1) or remove Drive writes from both exporters if GCS is the sole intended destination (issue #2).
+5. **API health endpoint** — Add a `/health` endpoint to the Cloud Run API returning `200 OK` so the liveness check is unambiguous.
+6. **Fix `bq` CLI** — The `bq` CLI has an `absl.flags` dependency error in this environment; fixing it would simplify the BQ check (currently uses the REST API as a workaround).
