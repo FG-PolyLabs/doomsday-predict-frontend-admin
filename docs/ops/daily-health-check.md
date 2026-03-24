@@ -42,9 +42,6 @@ Checks latest execution status and scans logs for:
 
 **Pass:** Execution succeeded and GCS write line present in logs.
 
-**Known issues (warnings, not failures):**
-- Drive writes fail with `403: storageQuotaExceeded` or `insufficientParentPermissions` — tracked in backlog. GCS writes still succeed.
-
 ---
 
 ### Step 3 — doomsday-polymarket
@@ -60,9 +57,8 @@ Checks latest execution status and scans logs for:
 
 **Pass:** Execution succeeded and BQ insert line present in logs.
 
-**Known issues (warnings, not failures):**
+**Known behavior:**
 - Fetch warnings for individual markets are expected (closed/expired markets return HTTP 400 from Polymarket).
-- Drive writes appear in logs — feature believed removed, tracked in backlog.
 
 ---
 
@@ -88,20 +84,10 @@ Hits the API root and checks for a valid HTTP response. A `404` at `/` is expect
 
 ---
 
-## Known Issues Backlog
-
-| # | Component | Issue | Severity | Status |
-|---|-----------|-------|----------|--------|
-| 1 | Doomsday Exporter | Drive writes fail with `403: Service Accounts do not have storage quota` | Medium — GCS writes still succeed | Open |
-| 2 | `doomsday-polymarket` | Unexpected Drive writes in logs — feature believed to have been removed | Low — investigate if intentional | Open |
-
----
-
 ## Suggested Improvements
 
 1. **Automate the BQ validation** — Create a scheduled BigQuery query or Looker Studio dashboard showing daily row counts, so trends are visible without running the script.
 2. **Cloud Monitoring alerts** — Set up job-failure alerts on Cloud Run so failures page you automatically.
 3. **Track expected fetch warnings** — Maintain a list of known-bad or closed markets so new failures stand out against the baseline noise.
-4. **Resolve Drive issues** — Fix the Drive 403 quota problem (issue #1) or remove Drive writes from both exporters if GCS is the sole intended destination (issue #2).
-5. **API health endpoint** — Add a `/health` endpoint to the Cloud Run API returning `200 OK` so the liveness check is unambiguous.
-6. **Fix `bq` CLI** — The `bq` CLI has an `absl.flags` dependency error in this environment; fixing it would simplify the BQ check (currently uses the REST API as a workaround).
+4. **API health endpoint** — Add a `/health` endpoint to the Cloud Run API returning `200 OK` so the liveness check is unambiguous.
+5. **Fix `bq` CLI** — The `bq` CLI has an `absl.flags` dependency error in this environment; fixing it would simplify the BQ check (currently uses the REST API as a workaround).

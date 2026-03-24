@@ -16,13 +16,6 @@ PASS=0
 WARN=0
 FAIL=0
 
-# Known-issue patterns that should not count as failures
-KNOWN_DRIVE_PATTERNS=(
-  "storageQuotaExceeded"
-  "insufficientParentPermissions"
-  "Service Accounts do not have storage quota"
-)
-
 green()  { printf '\033[0;32m✔ %s\033[0m\n' "$*"; }
 yellow() { printf '\033[0;33m⚠ %s\033[0m\n' "$*"; }
 red()    { printf '\033[0;31m✘ %s\033[0m\n' "$*"; }
@@ -31,16 +24,6 @@ header() { printf '\n\033[1;34m=== %s ===\033[0m\n' "$*"; }
 pass()  { green  "$*"; PASS=$((PASS + 1));  }
 warn()  { yellow "$*"; WARN=$((WARN + 1));  }
 fail()  { red    "$*"; FAIL=$((FAIL + 1));  }
-
-is_known_drive_error() {
-  local line="$1"
-  for pattern in "${KNOWN_DRIVE_PATTERNS[@]}"; do
-    if [[ "$line" == *"$pattern"* ]]; then
-      return 0
-    fi
-  done
-  return 1
-}
 
 # ── Set active project ────────────────────────────────────────────────────────
 gcloud config set project "$PROJECT" --quiet 2>/dev/null
@@ -97,23 +80,11 @@ else
   fail "GCS export: no 'GCS done' line found in logs"
 fi
 
-DRIVE_LINE=$(echo "$LOGS" | grep "Drive done" || true)
-if [[ -n "$DRIVE_LINE" ]]; then
-  pass "Drive export: $DRIVE_LINE"
-fi
-
-UNEXPECTED_ERRORS=$(echo "$LOGS" | grep -i "error" | while read -r line; do
-  is_known_drive_error "$line" || echo "$line"
-done || true)
+UNEXPECTED_ERRORS=$(echo "$LOGS" | grep -i "error" || true)
 if [[ -n "$UNEXPECTED_ERRORS" ]]; then
   while IFS= read -r line; do
     fail "Unexpected error: $line"
   done <<< "$UNEXPECTED_ERRORS"
-fi
-
-DRIVE_ERRORS=$(echo "$LOGS" | grep -c "Drive:.*Error 403" || true)
-if [[ "$DRIVE_ERRORS" -gt 0 ]]; then
-  warn "Drive: $DRIVE_ERRORS file(s) failed to write (known issue — GCS unaffected)"
 fi
 
 # ── Step 3: doomsday-polymarket execution + logs ──────────────────────────────
@@ -159,14 +130,7 @@ if [[ "$FETCH_WARNS" -gt 0 ]]; then
   warn "Fetch warnings: $FETCH_WARNS market(s) could not be fetched (expected for closed/expired markets)"
 fi
 
-DRIVE_ERRORS_PM=$(echo "$LOGS_PM" | grep -c "Drive:.*Error 403" || true)
-if [[ "$DRIVE_ERRORS_PM" -gt 0 ]]; then
-  warn "Drive: $DRIVE_ERRORS_PM file(s) failed to write (known issue #2 — Drive writes may be unintentional)"
-fi
-
-UNEXPECTED_PM=$(echo "$LOGS_PM" | grep -i "error" | while read -r line; do
-  is_known_drive_error "$line" || echo "$line"
-done || true)
+UNEXPECTED_PM=$(echo "$LOGS_PM" | grep -i "error" || true)
 if [[ -n "$UNEXPECTED_PM" ]]; then
   while IFS= read -r line; do
     fail "Unexpected error: $line"
