@@ -32,7 +32,15 @@
         <!-- Add more nav items here following the same pattern -->
       </ul>
 
-      <div class="d-flex align-items-center gap-2 ms-auto" id="nav-auth">
+      <div class="d-flex align-items-center gap-2 ms-auto">
+        <button class="btn btn-sm btn-outline-secondary" type="button"
+                data-bs-toggle="offcanvas" data-bs-target="#infraPanel"
+                title="Infrastructure links">
+          <i class="bi bi-diagram-3"></i>
+        </button>
+      </div>
+
+      <div class="d-flex align-items-center gap-2 ms-2" id="nav-auth">
         <span class="text-secondary small" id="nav-user-email"></span>
         <button class="btn btn-sm btn-outline-light d-none" id="btn-logout" onclick="authSignOut()">
           Sign out
@@ -44,3 +52,112 @@
     </div>
   </div>
 </nav>
+
+<!-- Infrastructure offcanvas panel -->
+<div class="offcanvas offcanvas-end" tabindex="-1" id="infraPanel" style="width:360px">
+  <div class="offcanvas-header border-bottom">
+    <h6 class="offcanvas-title fw-semibold">
+      <i class="bi bi-diagram-3 me-2"></i>Infrastructure
+    </h6>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
+  </div>
+  <div class="offcanvas-body p-0">
+
+    <!-- GitHub -->
+    <div class="infra-section">
+      <div class="infra-section-header" data-bs-toggle="collapse" data-bs-target="#infra-github">
+        <i class="bi bi-github me-2"></i>GitHub Repositories
+        <i class="bi bi-chevron-down ms-auto infra-chevron"></i>
+      </div>
+      <div class="collapse show" id="infra-github">
+        <a href="https://github.com/FG-PolyLabs/doomsday-predict-frontend-admin" target="_blank" class="infra-link">
+          <div class="infra-link-title">frontend-admin</div>
+          <div class="infra-link-desc">Hugo admin UI — this site. Auth via Firebase, reads static JSON, writes via Cloud Run API.</div>
+        </a>
+        <a href="https://github.com/FG-PolyLabs/doomsday-predict-analytics" target="_blank" class="infra-link">
+          <div class="infra-link-title">analytics</div>
+          <div class="infra-link-desc">Backend: Cloud Run API, polymarket extractor job, exporter job, and scheduled BigQuery pipelines.</div>
+        </a>
+        <a href="https://github.com/FG-PolyLabs/doomsday-predict-data" target="_blank" class="infra-link">
+          <div class="infra-link-title">data</div>
+          <div class="infra-link-desc">Published static JSON data files. Written by the exporter job; read by the frontend via jsDelivr CDN.</div>
+        </a>
+      </div>
+    </div>
+
+    <!-- GCS -->
+    <div class="infra-section">
+      <div class="infra-section-header" data-bs-toggle="collapse" data-bs-target="#infra-gcs">
+        <i class="bi bi-bucket me-2"></i>GCS Bucket
+        <i class="bi bi-chevron-down ms-auto infra-chevron"></i>
+      </div>
+      <div class="collapse show" id="infra-gcs">
+        <a href="https://console.cloud.google.com/storage/browser/fg-polylabs-doomsday?project=fg-polylabs" target="_blank" class="infra-link">
+          <div class="infra-link-title">fg-polylabs-doomsday</div>
+          <div class="infra-link-desc">Primary data store for exported JSON (index.json, events/). GCS is the authoritative fallback when jsDelivr CDN is stale.</div>
+        </a>
+      </div>
+    </div>
+
+    <!-- Cloud Run Services -->
+    <div class="infra-section">
+      <div class="infra-section-header" data-bs-toggle="collapse" data-bs-target="#infra-services">
+        <i class="bi bi-cloud me-2"></i>Cloud Run Services
+        <i class="bi bi-chevron-down ms-auto infra-chevron"></i>
+      </div>
+      <div class="collapse show" id="infra-services">
+        <a href="https://console.cloud.google.com/run/detail/us-central1/doomsday-api/metrics?project=fg-polylabs" target="_blank" class="infra-link">
+          <div class="infra-link-title">doomsday-api</div>
+          <div class="infra-link-desc">REST API for CRUD operations on markets data. Validates Firebase ID tokens and restricts to allowed emails.</div>
+        </a>
+      </div>
+    </div>
+
+    <!-- Cloud Run Jobs -->
+    <div class="infra-section">
+      <div class="infra-section-header" data-bs-toggle="collapse" data-bs-target="#infra-jobs">
+        <i class="bi bi-play-circle me-2"></i>Cloud Run Jobs
+        <i class="bi bi-chevron-down ms-auto infra-chevron"></i>
+      </div>
+      <div class="collapse show" id="infra-jobs">
+        <a href="https://console.cloud.google.com/run/jobs/details/us-central1/doomsday-polymarket/executions?project=fg-polylabs" target="_blank" class="infra-link">
+          <div class="infra-link-title">doomsday-polymarket</div>
+          <div class="infra-link-desc">Fetches YES/NO token price history from Polymarket for all active markets and writes deduplicated snapshots to BigQuery.</div>
+        </a>
+        <a href="https://console.cloud.google.com/run/jobs/details/us-central1/doomsday-exporter/executions?project=fg-polylabs" target="_blank" class="infra-link">
+          <div class="infra-link-title">doomsday-exporter</div>
+          <div class="infra-link-desc">Reads market_snapshots from BigQuery and publishes static JSON to GCS and the data repo. Run after polymarket or on demand.</div>
+        </a>
+      </div>
+    </div>
+
+    <!-- Cloud Scheduler -->
+    <div class="infra-section">
+      <div class="infra-section-header" data-bs-toggle="collapse" data-bs-target="#infra-scheduler">
+        <i class="bi bi-clock me-2"></i>Cloud Scheduler
+        <i class="bi bi-chevron-down ms-auto infra-chevron"></i>
+      </div>
+      <div class="collapse show" id="infra-scheduler">
+        <a href="https://console.cloud.google.com/cloudscheduler?project=fg-polylabs" target="_blank" class="infra-link">
+          <div class="infra-link-title">doomsday-daily</div>
+          <div class="infra-link-desc">Triggers doomsday-polymarket daily at 01:00 UTC with <code>--all --yesterday --active-only</code>. Runs as doomsday-runner SA.</div>
+        </a>
+      </div>
+    </div>
+
+    <!-- BigQuery -->
+    <div class="infra-section">
+      <div class="infra-section-header" data-bs-toggle="collapse" data-bs-target="#infra-bq">
+        <i class="bi bi-table me-2"></i>BigQuery
+        <i class="bi bi-chevron-down ms-auto infra-chevron"></i>
+      </div>
+      <div class="collapse show" id="infra-bq">
+        <a href="https://console.cloud.google.com/bigquery?project=fg-polylabs&ws=!1m4!1m3!3m2!1sfg-polylabs!2sdoomsday" target="_blank" class="infra-link">
+          <div class="infra-link-title">fg-polylabs.doomsday</div>
+          <div class="infra-link-desc">Dataset containing <code>markets</code> (config) and <code>market_snapshots</code> (price history, deduplicated on event_slug + snapshot_timestamp).</div>
+        </a>
+      </div>
+    </div>
+
+  </div>
+</div>

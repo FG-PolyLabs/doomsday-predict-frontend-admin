@@ -47,6 +47,63 @@ body {
 @keyframes spin { to { transform: rotate(360deg); } }
 .spin { display: inline-block; animation: spin 0.75s linear infinite; }
 
+/* ─── Infrastructure panel ───────────────────────────────── */
+.infra-section {
+  border-bottom: 1px solid #e9ecef;
+}
+
+.infra-section-header {
+  display: flex;
+  align-items: center;
+  padding: 0.65rem 1rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #495057;
+  cursor: pointer;
+  user-select: none;
+  background: #f8f9fa;
+}
+
+.infra-section-header:hover {
+  background: #e9ecef;
+}
+
+.infra-chevron {
+  transition: transform 0.2s ease;
+  font-size: 0.7rem;
+  color: #adb5bd;
+}
+
+
+.infra-link {
+  display: block;
+  padding: 0.6rem 1rem 0.6rem 1.25rem;
+  text-decoration: none;
+  border-left: 3px solid transparent;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.infra-link:hover {
+  background: #f8f9fa;
+  border-left-color: #0d6efd;
+}
+
+.infra-link-title {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #212529;
+  font-family: monospace;
+}
+
+.infra-link-desc {
+  font-size: 0.775rem;
+  color: #6c757d;
+  margin-top: 0.15rem;
+  line-height: 1.4;
+}
+
 /* ─── Spinner page center ────────────────────────────────── */
 #loading {
   min-height: 200px;
