@@ -28,9 +28,9 @@ yellow() { printf '\033[0;33m⚠ %s\033[0m\n' "$*"; }
 red()    { printf '\033[0;31m✘ %s\033[0m\n' "$*"; }
 header() { printf '\n\033[1;34m=== %s ===\033[0m\n' "$*"; }
 
-pass()  { green  "$*"; ((PASS++));  }
-warn()  { yellow "$*"; ((WARN++));  }
-fail()  { red    "$*"; ((FAIL++));  }
+pass()  { green  "$*"; PASS=$((PASS + 1));  }
+warn()  { yellow "$*"; WARN=$((WARN + 1));  }
+fail()  { red    "$*"; FAIL=$((FAIL + 1));  }
 
 is_known_drive_error() {
   local line="$1"
@@ -52,13 +52,15 @@ TODAY=$(date -u +%Y-%m-%d)
 JOBS=("doomsday-exporter" "doomsday-polymarket")
 
 for JOB in "${JOBS[@]}"; do
-  LAST_RUN=$(gcloud run jobs list --region="$REGION" \
-    --format="value(LAST_RUN_AT)" \
-    --filter="name=$JOB" 2>/dev/null)
+  LAST_RUN=$(gcloud run jobs executions list \
+    --job="$JOB" \
+    --region="$REGION" \
+    --limit=1 \
+    --format="value(status.completionTime)" 2>/dev/null)
   if [[ "$LAST_RUN" == "$TODAY"* ]]; then
     pass "$JOB: last run $LAST_RUN"
   else
-    fail "$JOB: last run was $LAST_RUN (expected today $TODAY)"
+    fail "$JOB: last run was '${LAST_RUN:-unknown}' (expected today $TODAY)"
   fi
 done
 
