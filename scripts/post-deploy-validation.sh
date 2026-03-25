@@ -4,10 +4,11 @@
 #   expected-sha: the git SHA that should be live (defaults to current HEAD)
 #
 # Checks:
-#   1. Frontend (GitHub Pages) is up and serving the expected deploy
+#   1. Admin frontend (GitHub Pages) is up and serving the expected deploy
 #   2. All Cloud Scheduler jobs are ENABLED
 #   3. Cloud Run API service is live and responding
 #   4. Cloud Run API image was updated (matches expected SHA in image tag)
+#   5. Public frontend (GitHub Pages) is reachable
 #
 # Requires: gcloud (authenticated), curl, python3
 
@@ -173,6 +174,19 @@ if [[ -d "$ANALYTICS_REPO/.git" ]]; then
   fi
 else
   warn "Analytics repo not found at $ANALYTICS_REPO — skipping image SHA cross-check"
+fi
+
+# ── Step 5: Public frontend liveness ─────────────────────────────────────────
+header "Step 5 — Public Frontend Liveness"
+
+PUBLIC_FRONTEND_URL="https://fg-polylabs.github.io/doomsday-predict-frontend/"
+PUBLIC_HTTP=$(curl -s -o /dev/null -w "%{http_code}" "$PUBLIC_FRONTEND_URL" 2>/dev/null || echo "000")
+if [[ "$PUBLIC_HTTP" == "200" ]]; then
+  pass "Public frontend HTTP $PUBLIC_HTTP: $PUBLIC_FRONTEND_URL"
+elif [[ "$PUBLIC_HTTP" == "000" ]]; then
+  fail "Public frontend unreachable: $PUBLIC_FRONTEND_URL"
+else
+  warn "Public frontend HTTP $PUBLIC_HTTP (expected 200): $PUBLIC_FRONTEND_URL"
 fi
 
 # ── Summary ───────────────────────────────────────────────────────────────────

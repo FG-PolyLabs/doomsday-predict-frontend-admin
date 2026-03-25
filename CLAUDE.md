@@ -4,19 +4,22 @@
 
 Hugo-based admin frontend for the **doomsday-predict** system. Authenticated users can create, edit, and delete records via the backend API. Data is read from static JSON (GitHub → GCS fallback) and written through Cloud Run.
 
-This is **one of three repos** in the project — see the Multi-Repo section below.
+This is **one of four repos** in the project — see the Multi-Repo section below.
 
 ## Multi-Repo Architecture
 
-All three repos are siblings on disk (same parent directory).
+All repos are siblings on disk (same parent directory).
 
 | Repo | Local path | GitHub | Purpose |
 |------|-----------|--------|---------|
-| `doomsday-predict-frontend-admin` | `.` | https://github.com/FG-PolyLabs/doomsday-predict-frontend-admin | This repo — admin UI |
+| `doomsday-predict-frontend-admin` | `.` | https://github.com/FG-PolyLabs/doomsday-predict-frontend-admin | This repo — admin UI (auth required) |
+| `doomsday-predict-frontend` | `../doomsday-predict-frontend` | https://github.com/FG-PolyLabs/doomsday-predict-frontend | Public UI — market prices, no auth |
 | `doomsday-predict-analytics` | `../doomsday-predict-analytics` | https://github.com/FG-PolyLabs/doomsday-predict-analytics | Backend: Cloud Run API + scheduled jobs |
 | `doomsday-predict-data` | `../doomsday-predict-data` | https://github.com/FG-PolyLabs/doomsday-predict-data | Published JSON data files |
 
 Run `./setup.sh` from this repo root to clone the sibling repos automatically.
+
+> **Mirroring:** When making significant changes to `themes/admin/layouts/prices/list.html` (chart logic, filters, table columns, data shape), propagate the relevant changes to `../doomsday-predict-frontend/themes/public/layouts/prices/list.html`. The public version is identical except it has no auth guard and no API source option.
 
 For cross-repo tasks, use the **multi-repo** custom agent (`.claude/agents/multi-repo.md`).
 

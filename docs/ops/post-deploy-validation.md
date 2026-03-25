@@ -75,6 +75,18 @@ Confirms all three scheduled jobs exist and are `ENABLED`:
 
 - **API image SHA mismatch / analytics repo not found** — Normal for frontend-only deploys where the API image hasn't changed.
 
+---
+
+### Step 5 — Public Frontend Liveness
+
+Confirms `https://fg-polylabs.github.io/doomsday-predict-frontend/` returns HTTP 200.
+
+This is a liveness-only check — SHA validation for the public frontend is handled by its own `scripts/post-deploy-validation.sh` in the `doomsday-predict-frontend` repo.
+
+**Pass:** HTTP 200 from the public frontend URL.
+
+---
+
 ## Failure Scenarios
 
 | Failure | Likely cause |
