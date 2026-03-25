@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(bash scripts/health-check.sh)"
+      "Bash(bash scripts/health-check.sh)",
+    "Bash(bash scripts/post-deploy-validation.sh:*)"
     ]
   }
 }

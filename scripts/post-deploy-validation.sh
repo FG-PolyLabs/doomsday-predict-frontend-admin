@@ -20,7 +20,9 @@ FRONTEND_URL="https://fg-polylabs.github.io/doomsday-predict-frontend-admin/"
 API_URL="https://doomsday-api-846376753241.us-central1.run.app"
 API_SERVICE="doomsday-api"
 
-EXPECTED_SHA="${1:-$(git rev-parse HEAD)}"
+# Normalise to full SHA so prefix comparisons always work
+_RAW_SHA="${1:-$(git rev-parse HEAD)}"
+EXPECTED_SHA=$(git rev-parse "$_RAW_SHA" 2>/dev/null || echo "$_RAW_SHA")
 SHORT_SHA="${EXPECTED_SHA:0:8}"
 
 PASS=0
@@ -65,7 +67,7 @@ else:
         print(s[0]['state'] if s else 'unknown')
 " 2>/dev/null)
 
-if [[ "$DEPLOYED_SHA" == "$SHORT_SHA" ]]; then
+if [[ "$SHORT_SHA" == "$DEPLOYED_SHA"* || "$DEPLOYED_SHA" == "$SHORT_SHA"* ]]; then
   pass "Frontend SHA matches: $DEPLOYED_SHA"
 else
   fail "Frontend SHA mismatch: deployed=$DEPLOYED_SHA expected=$SHORT_SHA"

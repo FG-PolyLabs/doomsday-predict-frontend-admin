@@ -2,6 +2,8 @@
 
 Run this after the scheduled jobs complete (typically early morning).
 
+> For validating a deployment rather than daily job health, see [post-deploy-validation.md](post-deploy-validation.md).
+
 **GCP project:** `fg-polylabs`
 **BigQuery dataset:** `fg-polylabs.doomsday`
 **GCS bucket:** `gs://fg-polylabs-doomsday`
