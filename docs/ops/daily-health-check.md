@@ -35,11 +35,10 @@ Confirms both `doomsday-exporter` and `doomsday-polymarket` ran today.
 
 ### Step 2 — Doomsday Exporter
 
-**Purpose:** Exports doomsday event data as JSON to GCS (and optionally Drive).
+**Purpose:** Exports doomsday event data as JSON to GCS.
 
 Checks latest execution status and scans logs for:
 - `GCS done` — confirms data was written to GCS
-- Drive 403 errors — flagged as warnings only (known issue)
 - Any other errors — flagged as failures
 
 **Pass:** Execution succeeded and GCS write line present in logs.
@@ -54,7 +53,6 @@ Checks latest execution status and scans logs for:
 - `new rows inserted` — confirms BQ ingest succeeded
 - `GCS done` — confirms GCS export succeeded
 - Fetch warnings — counted and reported but not a failure
-- Drive 403 errors — flagged as warnings only (known issue)
 - Any other errors — flagged as failures
 
 **Pass:** Execution succeeded and BQ insert line present in logs.
@@ -82,7 +80,7 @@ Hits the API root and checks for a valid HTTP response. A `404` at `/` is expect
 
 **Pass:** HTTP response received from the API (any non-5xx, non-unreachable code).
 
-> **Note:** The frontend (GitHub Pages) requires a browser check and is not covered by the script.
+> **Note:** Frontend liveness is covered by the post-deploy validation script, not this one. See [post-deploy-validation.md](post-deploy-validation.md).
 
 ---
 
