@@ -1,0 +1,372 @@
+{{ define "main" }}
+<div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+  <div class="d-flex align-items-center gap-3">
+    <h2 class="h5 mb-0 fw-semibold">{{ .Title }}</h2>
+    <span id="source-badge" class="badge bg-secondary d-none">GCS</span>
+  </div>
+</div>
+
+<!-- Auth guard -->
+<div id="auth-guard" class="alert alert-warning d-none">
+  <i class="bi bi-lock me-1"></i>You must be <a href="{{ "" | relURL }}">signed in</a> to view theta data.
+</div>
+
+<!-- Filters -->
+<div class="card shadow-sm border-0 mb-3 d-none" id="filters-card">
+  <div class="card-body py-3">
+    <div class="row g-2 align-items-end">
+      <div class="col-sm">
+        <label class="form-label small fw-medium mb-1" for="filter-event">Event</label>
+        <select class="form-select form-select-sm" id="filter-event">
+          <option value="">— select an event —</option>
+        </select>
+      </div>
+      <div class="col-sm-auto">
+        <label class="form-label small fw-medium mb-1 d-block">&nbsp;</label>
+        <button class="btn btn-primary btn-sm" onclick="queryTheta()"
+          data-bs-toggle="tooltip" data-bs-placement="bottom"
+          data-bs-title="Load theta data for the selected event from GCS">
+          <i class="bi bi-search me-1"></i>Query
+        </button>
+      </div>
+      <div class="col-sm-auto ms-auto d-flex align-items-end gap-2">
+        <div class="form-check form-switch mb-1"
+          data-bs-toggle="tooltip" data-bs-placement="bottom"
+          data-bs-title="Toggle between chart and table view">
+          <input class="form-check-input" type="checkbox" role="switch" id="view-toggle" checked onchange="toggleView()">
+          <label class="form-check-label small" for="view-toggle" id="view-label">Chart</label>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Index loading spinner -->
+<div id="index-loading" class="text-center py-5 d-none">
+  <div class="spinner-border text-primary" role="status"></div>
+  <p class="text-muted small mt-2">Loading events…</p>
+</div>
+
+<!-- Query loading spinner -->
+<div id="query-loading" class="text-center py-5 d-none">
+  <div class="spinner-border text-primary" role="status"></div>
+</div>
+
+<!-- Prompt to pick an event -->
+<div id="pick-prompt" class="text-center py-5 d-none">
+  <i class="bi bi-clock-history fs-1 text-muted"></i>
+  <p class="text-muted mt-2">Select an event above and click Query.</p>
+</div>
+
+<!-- Empty state -->
+<div id="empty-state" class="text-center py-5 d-none">
+  <i class="bi bi-inbox fs-1 text-muted"></i>
+  <p class="text-muted mt-2">No theta data found for this event.</p>
+</div>
+
+<!-- Chart -->
+<div class="card shadow-sm border-0 mb-3 d-none" id="chart-card">
+  <div class="card-header bg-transparent border-0 pt-3 pb-0 d-flex justify-content-between align-items-center">
+    <div class="d-flex gap-2 flex-wrap" id="stats-badges"></div>
+    <a id="chart-polymarket-link" href="#" target="_blank" rel="noopener"
+      class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-box-arrow-up-right me-1"></i>View on Polymarket
+    </a>
+  </div>
+  <div class="card-body">
+    <canvas id="theta-chart" style="max-height:480px"></canvas>
+  </div>
+  <div class="card-footer bg-transparent border-0 pb-3">
+    <p class="text-muted small mb-0">
+      <strong>Theta</strong> = daily change in YES price (in percentage points).
+      Positive = market priced up that day; negative = priced down.
+      X-axis counts down to expiry — points move right as the event approaches its deadline.
+    </p>
+  </div>
+</div>
+
+<!-- Table -->
+<div class="card shadow-sm border-0 d-none" id="table-card">
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0 small">
+        <thead class="table-light">
+          <tr>
+            <th class="ps-3">Question</th>
+            <th>Date</th>
+            <th>Days to Expiry</th>
+            <th>YES Price</th>
+            <th>Prev YES Price</th>
+            <th>Theta (pp)</th>
+            <th>Theta %</th>
+            <th>Days Elapsed</th>
+          </tr>
+        </thead>
+        <tbody id="theta-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{{ end }}
+
+{{ define "page-scripts" }}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script>
+  let thetaChart = null;
+  let chartMode  = true;
+  let lastPoints = [];
+
+  const LINE_COLORS = [
+    '#0d6efd','#dc3545','#198754','#fd7e14','#6f42c1',
+    '#20c997','#ffc107','#0dcaf0','#6610f2','#d63384',
+  ];
+
+  // --- auth ---
+
+  window.onPageAuthStateChanged = async function (user) {
+    if (!user || !isEmailAllowed(user.email)) {
+      document.getElementById('auth-guard').classList.remove('d-none');
+      return;
+    }
+    await loadIndex();
+  };
+
+  // --- index loading ---
+
+  async function loadIndex() {
+    document.getElementById('filters-card').classList.add('d-none');
+    document.getElementById('index-loading').classList.remove('d-none');
+    document.getElementById('pick-prompt').classList.add('d-none');
+
+    try {
+      const data = await loadFromGCS('theta/index.json');
+      populateEventDropdown(data.events || []);
+      document.getElementById('source-badge').classList.remove('d-none');
+      document.getElementById('index-loading').classList.add('d-none');
+      document.getElementById('filters-card').classList.remove('d-none');
+      document.getElementById('pick-prompt').classList.remove('d-none');
+    } catch (e) {
+      document.getElementById('index-loading').classList.add('d-none');
+      showToast('Failed to load theta index: ' + e.message, 'danger');
+    }
+  }
+
+  function populateEventDropdown(events) {
+    const sel = document.getElementById('filter-event');
+    const prev = sel.value;
+    while (sel.options.length > 1) sel.remove(1);
+
+    const byCategory = {};
+    events.forEach(e => {
+      const cat = e.category || 'Other';
+      if (!byCategory[cat]) byCategory[cat] = [];
+      byCategory[cat].push(e);
+    });
+
+    Object.keys(byCategory).sort().forEach(cat => {
+      const grp = document.createElement('optgroup');
+      grp.label = cat;
+      byCategory[cat].forEach(e => {
+        const opt = document.createElement('option');
+        opt.value = e.event_slug;
+        opt.textContent = `${e.event_title} (${e.point_count} pts)`;
+        grp.appendChild(opt);
+      });
+      sel.appendChild(grp);
+    });
+
+    if (prev) sel.value = prev;
+  }
+
+  // --- query ---
+
+  async function queryTheta() {
+    const slug = document.getElementById('filter-event').value;
+    if (!slug) { showToast('Please select an event.', 'warning'); return; }
+
+    document.getElementById('pick-prompt').classList.add('d-none');
+    document.getElementById('empty-state').classList.add('d-none');
+    document.getElementById('chart-card').classList.add('d-none');
+    document.getElementById('table-card').classList.add('d-none');
+    document.getElementById('query-loading').classList.remove('d-none');
+
+    try {
+      const data = await loadFromGCS(`theta/${slug}.json`);
+      const points = data.points || [];
+
+      document.getElementById('query-loading').classList.add('d-none');
+
+      if (points.length === 0) {
+        document.getElementById('empty-state').classList.remove('d-none');
+        return;
+      }
+
+      lastPoints = points;
+      renderChart(data.event_title, slug, points);
+      renderTable(points);
+      document.getElementById('chart-card').classList.toggle('d-none', !chartMode);
+      document.getElementById('table-card').classList.toggle('d-none', chartMode);
+    } catch (e) {
+      document.getElementById('query-loading').classList.add('d-none');
+      showToast('Query failed: ' + e.message, 'danger');
+    }
+  }
+
+  // --- view toggle ---
+
+  function toggleView() {
+    chartMode = document.getElementById('view-toggle').checked;
+    document.getElementById('view-label').textContent = chartMode ? 'Chart' : 'Table';
+    if (lastPoints.length === 0) return;
+    document.getElementById('chart-card').classList.toggle('d-none', !chartMode);
+    document.getElementById('table-card').classList.toggle('d-none', chartMode);
+  }
+
+  // --- chart ---
+
+  function renderChart(title, slug, points) {
+    // Group points by question; sort each group descending by days_to_expiry
+    // so lines draw left→right on the reversed x-axis.
+    const byQuestion = {};
+    points.forEach(p => {
+      if (!byQuestion[p.question]) byQuestion[p.question] = [];
+      byQuestion[p.question].push(p);
+    });
+
+    const questions = Object.keys(byQuestion).sort();
+    const datasets = questions.map((q, i) => {
+      const sorted = byQuestion[q].slice().sort((a, b) => b.days_to_expiry - a.days_to_expiry);
+      return {
+        label: q,
+        data: sorted.map(p => ({
+          x: p.days_to_expiry,
+          y: +(p.theta * 100).toFixed(3),
+          // carry extra fields for tooltip
+          snapshot_date: p.snapshot_date,
+          yes_price: p.yes_price,
+          prev_yes_price: p.prev_yes_price,
+          theta_pct: p.theta_pct,
+        })),
+        borderColor: LINE_COLORS[i % LINE_COLORS.length],
+        backgroundColor: LINE_COLORS[i % LINE_COLORS.length],
+        borderWidth: 2,
+        pointRadius: sorted.length > 60 ? 3 : 5,
+        pointHoverRadius: 7,
+        showLine: true,
+        tension: 0.3,
+      };
+    });
+
+    // Stats badges
+    renderStats(points);
+
+    document.getElementById('chart-polymarket-link').href =
+      `https://polymarket.com/event/${encodeURIComponent(slug)}`;
+
+    if (thetaChart) thetaChart.destroy();
+
+    thetaChart = new Chart(document.getElementById('theta-chart'), {
+      type: 'scatter',
+      data: { datasets },
+      options: {
+        responsive: true,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          title: { display: !!title, text: title, font: { size: 14 } },
+          legend: { position: 'top' },
+          tooltip: {
+            callbacks: {
+              title: items => {
+                const raw = items[0]?.raw;
+                return raw ? `${raw.snapshot_date}  (${items[0].parsed.x}d to expiry)` : '';
+              },
+              label: ctx => {
+                const raw = ctx.raw;
+                const sign = ctx.parsed.y >= 0 ? '+' : '';
+                const thetaPct = raw.theta_pct != null ? ` (${sign}${raw.theta_pct.toFixed(1)}%)` : '';
+                return `${ctx.dataset.label}: ${sign}${ctx.parsed.y.toFixed(2)} pp${thetaPct}`;
+              },
+              afterLabel: ctx => {
+                const raw = ctx.raw;
+                if (raw.prev_yes_price != null && raw.yes_price != null) {
+                  return `  YES: ${(raw.prev_yes_price * 100).toFixed(1)}% → ${(raw.yes_price * 100).toFixed(1)}%`;
+                }
+                return null;
+              },
+            },
+          },
+        },
+        scales: {
+          x: {
+            type: 'linear',
+            reverse: true,
+            title: { display: true, text: 'Days to Expiry' },
+            ticks: { stepSize: 10 },
+            grid: {
+              color: ctx => ctx.tick.value === 0 ? '#999' : '#e0e0e0',
+              lineWidth: ctx => ctx.tick.value === 0 ? 1.5 : 1,
+            },
+          },
+          y: {
+            title: { display: true, text: 'Theta (percentage points / day)' },
+            ticks: { callback: v => (v >= 0 ? '+' : '') + v.toFixed(1) + ' pp' },
+            grid: {
+              color: ctx => ctx.tick.value === 0 ? '#555' : '#e0e0e0',
+              lineWidth: ctx => ctx.tick.value === 0 ? 2 : 1,
+            },
+          },
+        },
+      },
+    });
+  }
+
+  function renderStats(points) {
+    const thetas = points.map(p => p.theta * 100);
+    const avg    = thetas.reduce((a, b) => a + b, 0) / thetas.length;
+    const min    = Math.min(...thetas);
+    const max    = Math.max(...thetas);
+    const pos    = thetas.filter(t => t > 0).length;
+    const neg    = thetas.filter(t => t < 0).length;
+
+    const fmt = v => (v >= 0 ? '+' : '') + v.toFixed(2) + ' pp';
+    const badges = document.getElementById('stats-badges');
+    badges.innerHTML = `
+      <span class="badge bg-secondary text-white" title="Average daily theta across all questions">avg ${fmt(avg)}</span>
+      <span class="badge bg-success text-white" title="Largest single-day gain">${fmt(max)}</span>
+      <span class="badge bg-danger text-white" title="Largest single-day drop">${fmt(min)}</span>
+      <span class="badge bg-light text-dark border" title="Days up vs days down">${pos}↑ ${neg}↓</span>
+    `;
+  }
+
+  // --- table ---
+
+  function renderTable(points) {
+    const sorted = points.slice().sort((a, b) =>
+      a.question.localeCompare(b.question) || a.snapshot_date.localeCompare(b.snapshot_date)
+    );
+    document.getElementById('theta-tbody').innerHTML = sorted.map(p => {
+      const theta_pp = (p.theta * 100).toFixed(2);
+      const sign = p.theta >= 0 ? '+' : '';
+      const thetaClass = p.theta > 0 ? 'text-success' : p.theta < 0 ? 'text-danger' : 'text-muted';
+      return `
+        <tr>
+          <td class="ps-3 fw-medium" style="max-width:280px">${escHtml(p.question)}</td>
+          <td class="text-muted font-monospace" style="font-size:0.85em">${escHtml(p.snapshot_date)}</td>
+          <td class="text-end">${p.days_to_expiry}</td>
+          <td class="text-end">${(p.yes_price * 100).toFixed(1)}%</td>
+          <td class="text-end text-muted">${(p.prev_yes_price * 100).toFixed(1)}%</td>
+          <td class="text-end fw-semibold ${thetaClass}">${sign}${theta_pp} pp</td>
+          <td class="text-end ${thetaClass}">${sign}${p.theta_pct.toFixed(1)}%</td>
+          <td class="text-end text-muted">${p.days_elapsed}</td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  function escHtml(str) {
+    const d = document.createElement('div');
+    d.appendChild(document.createTextNode(String(str)));
+    return d.innerHTML;
+  }
+</script>
+{{ end }}
