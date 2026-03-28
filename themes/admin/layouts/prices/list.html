@@ -88,6 +88,12 @@
 
 <!-- Chart -->
 <div class="card shadow-sm border-0 d-none" id="chart-card">
+  <div class="card-header bg-transparent border-0 pt-3 pb-0 d-flex justify-content-end">
+    <a id="chart-polymarket-link" href="#" target="_blank" rel="noopener"
+      class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-box-arrow-up-right me-1"></i>View on Polymarket
+    </a>
+  </div>
   <div class="card-body">
     <canvas id="prices-chart" style="max-height:480px"></canvas>
   </div>
@@ -319,8 +325,8 @@
       }
 
       lastSnapshots = snapshots;
-      renderChart(detail.event_title, snapshots);
-      renderTable(detail.event_title, snapshots);
+      renderChart(detail.event_title, detail.event_slug, snapshots);
+      renderTable(detail.event_title, detail.event_slug, snapshots);
       document.getElementById('chart-card').classList.toggle('d-none', !chartMode);
       document.getElementById('table-card').classList.toggle('d-none', chartMode);
     } catch (e) {
@@ -357,7 +363,7 @@
 
   // --- chart ---
 
-  function renderChart(title, snapshots) {
+  function renderChart(title, slug, snapshots) {
     // One dataset per unique question, sorted by timestamp.
     const byQuestion = {};
     snapshots.forEach(s => {
@@ -375,6 +381,9 @@
       pointRadius: byQuestion[q].length > 60 ? 0 : 3,
       tension: 0.3,
     }));
+
+    document.getElementById('chart-polymarket-link').href =
+      `https://polymarket.com/event/${encodeURIComponent(slug)}`;
 
     if (pricesChart) pricesChart.destroy();
 
@@ -415,10 +424,15 @@
 
   // --- table ---
 
-  function renderTable(title, snapshots) {
+  function renderTable(title, slug, snapshots) {
+    const pmUrl = `https://polymarket.com/event/${encodeURIComponent(slug)}`;
     document.getElementById('prices-tbody').innerHTML = snapshots.map(s => `
       <tr>
-        <td class="ps-3 fw-medium small">${escHtml(title)}</td>
+        <td class="ps-3 fw-medium small">
+          <a href="${pmUrl}" target="_blank" rel="noopener" class="text-decoration-none">
+            ${escHtml(title)}<i class="bi bi-box-arrow-up-right ms-1 text-muted" style="font-size:0.75em"></i>
+          </a>
+        </td>
         <td>${escHtml(s.question)}</td>
         <td class="text-muted font-monospace" style="font-size:0.8em">${escHtml(s.snapshot_timestamp)}</td>
         <td><span class="badge bg-success">${(s.yes_price * 100).toFixed(1)}%</span></td>
